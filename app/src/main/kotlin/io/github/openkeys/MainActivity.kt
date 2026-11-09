@@ -2,10 +2,13 @@ package io.github.openkeys
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -36,12 +39,19 @@ class MainActivity : ComponentActivity() {
                     val devices by app.midi.devices.collectAsState()
                     val state by app.midi.state.collectAsState()
                     val lastEvent by app.lastEvent.collectAsState()
+                    val sound by app.sound.collectAsState()
+                    val pickSoundFont = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                        uri?.let(app::loadSoundFont)
+                    }
                     MidiConnectionScreen(
                         devices = devices,
                         state = state,
                         lastEvent = lastEvent,
+                        sound = sound,
                         onConnect = { app.midi.connect(it) },
                         onDisconnect = { app.midi.disconnect() },
+                        onPickSoundFont = { pickSoundFont.launch(arrayOf("*/*")) },
+                        onPanic = app::panic,
                     )
                 }
             }
@@ -54,11 +64,34 @@ private fun MidiConnectionScreen(
     devices: List<MidiDeviceEntry>,
     state: MidiConnectionState,
     lastEvent: MidiEvent?,
+    sound: SoundStatus,
     onConnect: (Int) -> Unit,
     onDisconnect: () -> Unit,
+    onPickSoundFont: () -> Unit,
+    onPanic: () -> Unit,
 ) {
     Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = when (sound) {
+                is SoundStatus.EngineFailed -> sound.message
+                SoundStatus.NoSoundFont -> stringResource(R.string.sound_none)
+                SoundStatus.Loading -> stringResource(R.string.sound_loading)
+                is SoundStatus.Loaded -> stringResource(R.string.sound_loaded, sound.name)
+                is SoundStatus.LoadFailed -> sound.message
+            },
+            color = if (sound is SoundStatus.EngineFailed || sound is SoundStatus.LoadFailed) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = onPickSoundFont, enabled = sound !is SoundStatus.EngineFailed && sound != SoundStatus.Loading) {
+                Text(stringResource(R.string.sound_pick))
+            }
+            Button(onClick = onPanic) { Text(stringResource(R.string.panic)) }
+        }
         Text(
             text = when (state) {
                 MidiConnectionState.Disconnected -> stringResource(R.string.midi_disconnected)
