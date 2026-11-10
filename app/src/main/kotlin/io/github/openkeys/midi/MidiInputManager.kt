@@ -30,16 +30,18 @@ class MidiInputManager(
     context: Context,
     private val onEvent: (MidiEvent) -> Unit,
     private val onConnectionLost: () -> Unit,
-) {
+) : MidiInput {
     private val midiManager: MidiManager? = context.getSystemService(MidiManager::class.java)
     private val thread = HandlerThread("openkeys-midi").apply { start() }
     private val handler = Handler(thread.looper)
 
     private val _devices = MutableStateFlow<List<MidiDeviceEntry>>(emptyList())
-    val devices: StateFlow<List<MidiDeviceEntry>> = _devices.asStateFlow()
+    override val devices: StateFlow<List<MidiDeviceEntry>> = _devices.asStateFlow()
 
     private val _state = MutableStateFlow<MidiConnectionState>(MidiConnectionState.Disconnected)
-    val state: StateFlow<MidiConnectionState> = _state.asStateFlow()
+    override val state: StateFlow<MidiConnectionState> = _state.asStateFlow()
+
+    override val supportsDeviceSelection = true
 
     // All fields below are confined to the MIDI handler thread.
     private var device: MidiDevice? = null
@@ -67,7 +69,7 @@ class MidiInputManager(
         }
     }
 
-    fun start() {
+    override fun start() {
         val manager = midiManager ?: run {
             _state.value = MidiConnectionState.Error("MIDI is not supported on this device")
             return
@@ -87,7 +89,7 @@ class MidiInputManager(
         }
     }
 
-    fun connect(deviceId: Int) {
+    override fun connect(deviceId: Int) {
         handler.post {
             val info = currentDeviceInfos().firstOrNull { it.id == deviceId }
             if (info == null) {
@@ -100,7 +102,7 @@ class MidiInputManager(
         }
     }
 
-    fun disconnect() {
+    override fun disconnect() {
         handler.post {
             reconnectName = null
             closeCurrent()
@@ -109,7 +111,7 @@ class MidiInputManager(
         }
     }
 
-    fun release() {
+    override fun release() {
         handler.post {
             midiManager?.unregisterDeviceCallback(deviceCallback)
             closeCurrent()

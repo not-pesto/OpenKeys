@@ -3,6 +3,7 @@ package io.github.openkeys.presets
 import io.github.openkeys.midi.MidiNote
 import io.github.openkeys.routing.RoutingConfig
 import io.github.openkeys.routing.SlotRouting
+import io.github.openkeys.routing.VoiceSlotId
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -53,6 +54,18 @@ data class PerformancePreset(
     }
 
     fun soundFontIds(): Set<String> = listOfNotNull(right1.soundFontId, right2.soundFontId, left1.soundFontId).toSet()
+
+    fun slot(id: VoiceSlotId): VoiceSlot = when (id) {
+        VoiceSlotId.RIGHT_1 -> right1
+        VoiceSlotId.RIGHT_2 -> right2
+        VoiceSlotId.LEFT_1 -> left1
+    }
+
+    fun withSlot(id: VoiceSlotId, slot: VoiceSlot): PerformancePreset = when (id) {
+        VoiceSlotId.RIGHT_1 -> copy(right1 = slot)
+        VoiceSlotId.RIGHT_2 -> copy(right2 = slot)
+        VoiceSlotId.LEFT_1 -> copy(left1 = slot)
+    }
 
     fun toRoutingConfig() = RoutingConfig(
         splitEnabled = splitEnabled,

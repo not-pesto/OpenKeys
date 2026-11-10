@@ -20,6 +20,13 @@ class FluidSynthEngine private constructor(private var handle: Long) : SynthEngi
 
     override fun loadSoundFont(path: String): Int? = nativeLoadSoundFont(live(), path).takeIf { it >= 0 }
 
+    override fun patches(soundFontId: Int): List<Patch> {
+        val numbers = nativePatchNumbers(live(), soundFontId)
+        val names = nativePatchNames(live(), soundFontId)
+        return names.indices.map { Patch(numbers[2 * it], numbers[2 * it + 1], names[it]) }
+            .sortedWith(compareBy({ it.bank }, { it.program }))
+    }
+
     override fun selectProgram(slot: VoiceSlotId, soundFontId: Int, bank: Int, program: Int): Boolean =
         nativeProgramSelect(live(), slot.channel(), soundFontId, bank, program)
 
@@ -58,6 +65,8 @@ class FluidSynthEngine private constructor(private var handle: Long) : SynthEngi
         @JvmStatic private external fun nativeCreate(sampleRate: Int): Long
         @JvmStatic private external fun nativeDestroy(handle: Long)
         @JvmStatic private external fun nativeLoadSoundFont(handle: Long, path: String): Int
+        @JvmStatic private external fun nativePatchNumbers(handle: Long, sfontId: Int): IntArray
+        @JvmStatic private external fun nativePatchNames(handle: Long, sfontId: Int): Array<String>
         @JvmStatic private external fun nativeProgramSelect(handle: Long, chan: Int, sfontId: Int, bank: Int, program: Int): Boolean
         @JvmStatic private external fun nativeNoteOn(handle: Long, chan: Int, key: Int, vel: Int)
         @JvmStatic private external fun nativeNoteOff(handle: Long, chan: Int, key: Int)

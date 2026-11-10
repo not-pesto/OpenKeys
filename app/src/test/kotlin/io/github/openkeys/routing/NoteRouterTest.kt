@@ -112,4 +112,34 @@ class NoteRouterTest {
     fun rejectsInvalidSplitNote() {
         RoutingConfig(splitNote = 128)
     }
+
+    @Test
+    fun overlappingKeysOnSameTransposedNoteReleaseOnlyWhenBothUp() {
+        val router = NoteRouter(RoutingConfig(right1 = SlotRouting(enabled = true, transposeSemitones = 12)))
+        router.noteOn(60, 100)
+        router.config = RoutingConfig(right1 = on)
+        assertEquals(listOf(NoteOn(SlotNote(RIGHT_1, 72), 90)), router.noteOn(72, 90))
+        assertTrue(router.noteOff(60).isEmpty())
+        assertEquals(listOf(NoteOff(SlotNote(RIGHT_1, 72))), router.noteOff(72))
+    }
+
+    @Test
+    fun disablingSlotWhileHeldStillReleasesIt() {
+        val router = NoteRouter(RoutingConfig(right1 = on, right2 = on))
+        router.noteOn(64, 100)
+        router.config = RoutingConfig(right1 = on, right2 = SlotRouting())
+        assertEquals(
+            listOf(NoteOff(SlotNote(RIGHT_1, 64)), NoteOff(SlotNote(RIGHT_2, 64))),
+            router.noteOff(64),
+        )
+    }
+
+    @Test
+    fun allNotesOffResetsOverlapCounts() {
+        val router = NoteRouter(RoutingConfig(right1 = on))
+        router.noteOn(60, 100)
+        router.allNotesOff()
+        router.noteOn(60, 100)
+        assertEquals(listOf(NoteOff(SlotNote(RIGHT_1, 60))), router.noteOff(60))
+    }
 }

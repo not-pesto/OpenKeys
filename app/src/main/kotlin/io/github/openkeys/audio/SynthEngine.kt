@@ -2,6 +2,8 @@ package io.github.openkeys.audio
 
 import io.github.openkeys.routing.VoiceSlotId
 
+data class Patch(val bank: Int, val program: Int, val name: String)
+
 /** Engine-neutral synth API so presets/UI/routing do not depend on FluidSynth. */
 interface SynthEngine : AutoCloseable {
     fun noteOn(slot: VoiceSlotId, note: Int, velocity: Int)
@@ -14,6 +16,7 @@ interface SynthEngine : AutoCloseable {
 
     /** Blocking; call off the UI and MIDI threads. Returns an engine id, or null on failure. */
     fun loadSoundFont(path: String): Int?
+    fun patches(soundFontId: Int): List<Patch>
     fun selectProgram(slot: VoiceSlotId, soundFontId: Int, bank: Int, program: Int): Boolean
     fun setSlotVolume(slot: VoiceSlotId, volume: Float)
     fun setReverb(level: Float)

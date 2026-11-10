@@ -16,6 +16,16 @@ Binaries live in `app/src/main/jniLibs/`; headers in `app/src/main/cpp/fluidsynt
 | libvorbis (`libvorbis.so`, `libvorbisenc.so`) | 1.3.7 | BSD-3-Clause | https://github.com/xiph/vorbis |
 | Opus (`libopus.so`) | as bundled | BSD-3-Clause | https://github.com/xiph/opus |
 
+## Java/Kotlin libraries
+
+| Library | Version | License | Source |
+|---|---|---|---|
+| Kshoji USB-MIDI-Driver (`jp.kshoji:midi-driver`), Copyright K.Shoji | 0.1.12 | Apache-2.0 | https://github.com/kshoji/USB-MIDI-Driver |
+| javax.sound.midi for Android (`jp.kshoji:javax-sound-midi`), Copyright K.Shoji | 0.0.6 | Apache-2.0 | https://github.com/kshoji/javax.sound.midi-for-Android |
+
+The Kshoji driver is used unmodified as a Gradle dependency; OpenKeys only adapts its
+callbacks in `app/src/main/kotlin/io/github/openkeys/midi/KshojiMidiInput.kt`.
+
 ## LGPL obligations
 
 - Full license text: `licenses/LGPL-2.1.txt`.

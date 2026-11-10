@@ -1,15 +1,3 @@
 <resources>
     <string name="app_name">OpenKeys</string>
-    <string name="midi_disconnected">No MIDI device connected</string>
-    <string name="midi_connecting">Connecting to %1$s…</string>
-    <string name="midi_connected">Connected: %1$s</string>
-    <string name="midi_disconnect">Disconnect</string>
-    <string name="midi_waiting">Play a key to test input</string>
-    <string name="midi_devices">MIDI devices</string>
-    <string name="midi_no_devices">No MIDI input devices found. Connect a USB MIDI keyboard.</string>
-    <string name="sound_none">No SoundFont loaded</string>
-    <string name="sound_loading">Loading SoundFont…</string>
-    <string name="sound_loaded">SoundFont: %1$s</string>
-    <string name="sound_pick">Load SoundFont</string>
-    <string name="panic">All notes off</string>
 </resources>

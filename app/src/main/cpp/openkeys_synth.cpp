@@ -1,4 +1,5 @@
 #include <jni.h>
+#include <vector>
 #include <android/log.h>
 #include <fluidsynth.h>
 
@@ -72,6 +73,42 @@ JNIEXPORT jint JNICALL JNI_FN(nativeLoadSoundFont)(JNIEnv *env, jclass, jlong ha
     int id = fluid_synth_sfload(synthOf(handle), cPath, 0);
     env->ReleaseStringUTFChars(path, cPath);
     return id;
+}
+
+// Returns {bank, program, bank, program, ...}; names are returned separately in the same order.
+JNIEXPORT jintArray JNICALL JNI_FN(nativePatchNumbers)(JNIEnv *env, jclass, jlong handle, jint sfontId) {
+    fluid_sfont_t *sfont = fluid_synth_get_sfont_by_id(synthOf(handle), sfontId);
+    std::vector<jint> numbers;
+    if (sfont) {
+        fluid_sfont_iteration_start(sfont);
+        while (fluid_preset_t *p = fluid_sfont_iteration_next(sfont)) {
+            numbers.push_back(fluid_preset_get_banknum(p));
+            numbers.push_back(fluid_preset_get_num(p));
+        }
+    }
+    jintArray result = env->NewIntArray(static_cast<jsize>(numbers.size()));
+    if (result) env->SetIntArrayRegion(result, 0, static_cast<jsize>(numbers.size()), numbers.data());
+    return result;
+}
+
+JNIEXPORT jobjectArray JNICALL JNI_FN(nativePatchNames)(JNIEnv *env, jclass, jlong handle, jint sfontId) {
+    fluid_sfont_t *sfont = fluid_synth_get_sfont_by_id(synthOf(handle), sfontId);
+    std::vector<const char *> names;
+    if (sfont) {
+        fluid_sfont_iteration_start(sfont);
+        while (fluid_preset_t *p = fluid_sfont_iteration_next(sfont)) {
+            const char *name = fluid_preset_get_name(p);
+            names.push_back(name ? name : "");
+        }
+    }
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray result = env->NewObjectArray(static_cast<jsize>(names.size()), stringClass, nullptr);
+    for (jsize i = 0; result && i < static_cast<jsize>(names.size()); ++i) {
+        jstring s = env->NewStringUTF(names[i]);
+        env->SetObjectArrayElement(result, i, s);
+        env->DeleteLocalRef(s);
+    }
+    return result;
 }
 
 JNIEXPORT jboolean JNICALL JNI_FN(nativeProgramSelect)(JNIEnv *, jclass, jlong handle, jint chan, jint sfontId,
