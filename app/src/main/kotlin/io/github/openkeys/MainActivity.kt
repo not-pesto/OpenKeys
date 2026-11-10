@@ -607,7 +607,7 @@ private fun SlotCard(
             }
             HorizontalDivider(color = OkColors.Border)
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val imageSize = (maxWidth * if (compact) 0.18f else 0.26f).coerceIn(40.dp, 112.dp)
+                val imageSize = (maxWidth * if (compact) 0.3f else 0.4f).coerceIn(64.dp, 160.dp)
                 Row(
                     Modifier.alpha(if (active) 1f else 0.6f),
                     verticalAlignment = Alignment.CenterVertically,
@@ -649,22 +649,40 @@ private fun SlotCard(
                 fill = true,
             )
             HorizontalDivider(color = OkColors.Border)
-            LabeledSlider("Vol", slot.volume) { v -> onChange { it.copy(volume = v) } }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Transpose", color = OkColors.TextSecondary)
-                Spacer(Modifier.weight(1f))
-                Stepper(
-                    label = "%+d".format(slot.transposeSemitones),
-                    enabled = true,
-                    steps = listOf(-12, -1, 1, 12),
-                    onStep = { d ->
-                        onChange {
-                            it.copy(transposeSemitones = (it.transposeSemitones + d).coerceIn(-VoiceSlot.MAX_TRANSPOSE, VoiceSlot.MAX_TRANSPOSE))
-                        }
-                    },
+                Text("Vol ${(slot.volume * 100).toInt()}%", color = OkColors.TextSecondary, modifier = Modifier.width(72.dp))
+                Slider(
+                    value = slot.volume,
+                    onValueChange = { v -> onChange { it.copy(volume = v) } },
+                    valueRange = 0f..1f,
+                    modifier = Modifier.weight(1f),
                 )
+                Spacer(Modifier.width(8.dp))
+                OctaveControl(slot.transposeSemitones) { d ->
+                    onChange {
+                        it.copy(transposeSemitones = (it.transposeSemitones + d).coerceIn(-VoiceSlot.MAX_TRANSPOSE, VoiceSlot.MAX_TRANSPOSE))
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun OctaveControl(semitones: Int, onStep: (Int) -> Unit) {
+    val octaves = semitones / 12
+    val rest = semitones % 12
+    Row(
+        Modifier.border(1.dp, OkColors.Border, MaterialTheme.shapes.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = { onStep(-12) }, enabled = semitones - 12 >= -VoiceSlot.MAX_TRANSPOSE) { Text("−") }
+        Text(
+            if (rest == 0) "Oct %+d".format(octaves) else "Oct %+d %+dst".format(octaves, rest),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (semitones == 0) OkColors.TextSecondary else OkColors.Cyan,
+        )
+        TextButton(onClick = { onStep(12) }, enabled = semitones + 12 <= VoiceSlot.MAX_TRANSPOSE) { Text("+") }
     }
 }
 
