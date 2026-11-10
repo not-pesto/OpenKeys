@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -63,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -122,6 +124,9 @@ class MainActivity : ComponentActivity() {
 }
 
 private const val TAGLINE = "Open Source MIDI Platform for Music Performers"
+
+// Mirrors the keyboard: left-hand voice first.
+private val TILE_ORDER = listOf(VoiceSlotId.LEFT_1, VoiceSlotId.RIGHT_1, VoiceSlotId.RIGHT_2)
 
 @Composable
 private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
@@ -184,7 +189,7 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
 
             Box {
                 val slots: @Composable (Modifier) -> Unit = { mod ->
-                    VoiceSlotId.entries.forEach { id ->
+                    TILE_ORDER.forEach { id ->
                         SlotCard(
                             modifier = mod,
                             label = id.label(),
@@ -606,13 +611,30 @@ private fun SlotCard(
                 )
             }
             HorizontalDivider(color = OkColors.Border)
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val imageSize = (maxWidth * if (compact) 0.3f else 0.4f).coerceIn(64.dp, 160.dp)
-                Row(
-                    Modifier.alpha(if (active) 1f else 0.6f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
+            BoxWithConstraints(Modifier.fillMaxWidth().alpha(if (active) 1f else 0.6f)) {
+                val artSize = (maxWidth * if (compact) 0.5f else 0.62f).coerceIn(110.dp, 240.dp)
+                Box(Modifier.fillMaxWidth().height(artSize * 0.8f)) {
+                    if (art != null) {
+                        InstrumentImage(
+                            art,
+                            Modifier.align(Alignment.CenterEnd).offset(x = 14.dp).size(artSize),
+                        )
+                        Box(
+                            Modifier.matchParentSize().background(
+                                Brush.horizontalGradient(
+                                    0f to OkColors.Card,
+                                    0.3f to OkColors.Card.copy(alpha = 0.85f),
+                                    0.65f to Color.Transparent,
+                                ),
+                            ),
+                        )
+                        Box(
+                            Modifier.matchParentSize().background(
+                                Brush.verticalGradient(0.7f to Color.Transparent, 1f to OkColors.Card),
+                            ),
+                        )
+                    }
+                    Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(if (art != null) 0.6f else 1f)) {
                         Text(
                             patch?.name ?: if (slot.soundFontId == null) "No instrument" else "Program ${slot.program}",
                             style = MaterialTheme.typography.titleLarge,
@@ -624,10 +646,6 @@ private fun SlotCard(
                             inactive -> Text("Inactive while split is off", style = MaterialTheme.typography.bodySmall, color = OkColors.Warning)
                             !slot.enabled -> Text("Off", style = MaterialTheme.typography.bodySmall, color = OkColors.TextSecondary)
                         }
-                    }
-                    if (art != null) {
-                        Spacer(Modifier.width(12.dp))
-                        InstrumentImage(art, Modifier.size(imageSize))
                     }
                 }
             }
