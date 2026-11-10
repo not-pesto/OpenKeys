@@ -32,6 +32,13 @@ callbacks in `app/src/main/kotlin/io/github/openkeys/midi/KshojiMidiInput.kt`.
 - The LGPL libraries are unmodified and loaded as separate shared objects, so users can
   replace them with their own builds. Corresponding source is available at the links above.
 
+## Artwork
+
+- Instrument artwork (`app/src/main/res/drawable-nodpi/instrument_*.webp`) was generated with
+  OpenAI image generation for this project. Under the OpenAI Terms of Use the output is owned
+  by the project owner, who distributes it under the project licence (Apache-2.0).
+  Provenance notes: `design/instrument_art/README.txt`.
+
 ## Open items before first release
 
 - Opus license text is taken from upstream v1.5.2; confirm against the exact bundled Opus version.

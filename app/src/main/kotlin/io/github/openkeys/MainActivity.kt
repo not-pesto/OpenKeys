@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -63,7 +64,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -85,8 +85,7 @@ import io.github.openkeys.presets.PerformancePreset
 import io.github.openkeys.presets.VoiceSlot
 import io.github.openkeys.routing.VoiceSlotId
 import io.github.openkeys.soundfonts.SoundFontEntry
-import io.github.openkeys.ui.InstrumentArt
-import io.github.openkeys.ui.art
+import io.github.openkeys.ui.artRes
 import io.github.openkeys.ui.theme.OkColors
 import io.github.openkeys.ui.theme.OpenKeysTheme
 import io.github.openkeys.ui.theme.okSwitchColors
@@ -589,7 +588,7 @@ private fun SlotCard(
     val patch = patches.firstOrNull { it.bank == slot.bank && it.program == slot.program }
     val sfName = slot.soundFontId?.let { id -> soundFonts.firstOrNull { it.id == id }?.name ?: "Missing SoundFont" } ?: "No SoundFont"
     val art = remember(slot.soundFontId, slot.bank, slot.program, patch?.name) {
-        slot.soundFontId?.let { InstrumentCategory.of(slot.bank, slot.program, patch?.name)?.art() }
+        slot.soundFontId?.let { InstrumentCategory.of(slot.bank, slot.program, patch?.name)?.artRes() }
     }
     val active = slot.enabled && !inactive
     OkCard(
@@ -670,13 +669,12 @@ private fun SlotCard(
 }
 
 @Composable
-private fun InstrumentImage(art: InstrumentArt, modifier: Modifier) {
+private fun InstrumentImage(@DrawableRes res: Int, modifier: Modifier) {
     Image(
-        painter = painterResource(art.res),
+        painter = painterResource(res),
         contentDescription = null,
         contentScale = ContentScale.Fit,
-        colorFilter = if (art.lineArt) ColorFilter.tint(OkColors.TextSecondary) else null,
-        alpha = if (art.lineArt) 0.5f else 0.8f,
+        alpha = 0.85f,
         modifier = modifier,
     )
 }
