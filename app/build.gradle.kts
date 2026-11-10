@@ -33,9 +33,23 @@ android {
         }
     }
 
+    // Release signing comes only from environment variables (CI secrets); never from the repo.
+    val keystorePath = providers.environmentVariable("OPENKEYS_KEYSTORE").orNull
+    signingConfigs {
+        if (keystorePath != null) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = providers.environmentVariable("OPENKEYS_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("OPENKEYS_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("OPENKEYS_KEY_PASSWORD").orNull
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -46,6 +60,35 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+}
+
+abstract class CollectLicenses : DefaultTask() {
+    @get:InputFiles
+    abstract val licenseFiles: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun collect() {
+        val dir = outputDir.get().asFile.resolve("licenses")
+        dir.deleteRecursively()
+        dir.mkdirs()
+        licenseFiles.forEach { f ->
+            f.copyTo(dir.resolve(if (f.name == "LICENSE") "OpenKeys-Apache-2.0.txt" else f.name), overwrite = true)
+        }
+    }
+}
+
+val collectLicenses = tasks.register<CollectLicenses>("collectLicenses") {
+    licenseFiles.from(rootProject.file("LICENSE"), rootProject.file("THIRD_PARTY_NOTICES.md"), rootProject.fileTree("licenses"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(collectLicenses, CollectLicenses::outputDir)
     }
 }
 

@@ -3,10 +3,12 @@ package io.github.openkeys
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -61,6 +63,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -94,6 +97,7 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
     val midi by app.midi.collectAsState()
     val driver by app.midiDriver.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
+    var showLicenses by remember { mutableStateOf(false) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val pickSoundFont = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -122,6 +126,21 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
 
         MidiSection(midi, lastEvent)
 
+        if (presets.isNotEmpty()) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                presets.forEach { p ->
+                    if (p.id == preset.id) {
+                        Button(onClick = { perf.recall(p.id) }) { Text(p.name) }
+                    } else {
+                        OutlinedButton(onClick = { perf.recall(p.id) }) { Text(p.name) }
+                    }
+                }
+            }
+        }
+
         PresetSection(
             preset = preset,
             presets = presets,
@@ -132,14 +151,13 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
             onDelete = perf::delete,
         )
 
-        Card {
-            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${soundFonts.size} SoundFont(s) imported", modifier = Modifier.weight(1f))
-                Button(onClick = { pickSoundFont.launch(arrayOf("*/*")) }, enabled = !importing) {
-                    Text(if (importing) "Importing…" else "Import SoundFont")
-                }
-            }
-        }
+        SoundFontSection(
+            soundFonts = soundFonts,
+            importing = importing,
+            onImport = { pickSoundFont.launch(arrayOf("*/*")) },
+            usersOf = perf::soundFontUsers,
+            onRemove = perf::removeSoundFont,
+        )
 
         Card {
             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -193,9 +211,86 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
         SettingsDialog(
             driver = driver,
             onSelect = app::setMidiDriver,
+            onShowLicenses = { showSettings = false; showLicenses = true },
             onDismiss = { showSettings = false },
         )
     }
+    if (showLicenses) LicensesDialog(onDismiss = { showLicenses = false })
+}
+
+@Composable
+private fun SoundFontSection(
+    soundFonts: List<SoundFontEntry>,
+    importing: Boolean,
+    onImport: () -> Unit,
+    usersOf: (String) -> List<String>,
+    onRemove: (String) -> Unit,
+) {
+    var removing by remember { mutableStateOf<SoundFontEntry?>(null) }
+    Card {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("SoundFonts", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Button(onClick = onImport, enabled = !importing) {
+                    Text(if (importing) "Importing…" else "Import SoundFont")
+                }
+            }
+            if (soundFonts.isEmpty()) Text("Import an SF2 or SF3 file to start playing.")
+            soundFonts.forEach { sf ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(sf.name, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    TextButton(onClick = { removing = sf }) { Text("Remove") }
+                }
+            }
+        }
+    }
+    removing?.let { sf ->
+        val users = remember(sf.id) { usersOf(sf.id) }
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            title = { Text("Remove ${sf.name}?") },
+            text = {
+                Text(
+                    if (users.isEmpty()) "The file will be deleted from the app."
+                    else "Used by: ${users.joinToString()}. Those voices will show \"Missing SoundFont\" until you pick another.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { removing = null; onRemove(sf.id) }) { Text("Remove") } },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun LicensesDialog(onDismiss: () -> Unit) {
+    val assets = androidx.compose.ui.platform.LocalContext.current.assets
+    val files = remember { assets.list("licenses")?.sorted().orEmpty() }
+    var selected by remember { mutableStateOf(files.firstOrNull { it.startsWith("THIRD_PARTY") } ?: files.firstOrNull()) }
+    val text = remember(selected) {
+        selected?.let { name -> assets.open("licenses/$name").bufferedReader().use { it.readText() } }.orEmpty()
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("About & licences") },
+        text = {
+            Column {
+                Text("OpenKeys ${BuildConfig.VERSION_NAME}. Apache-2.0. Uses FluidSynth (LGPL-2.1) and Kshoji USB-MIDI-Driver (Apache-2.0).")
+                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    files.forEach { f ->
+                        TextButton(onClick = { selected = f }) {
+                            Text(f.substringBeforeLast('.'), style = if (f == selected) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
 }
 
 @Composable
@@ -376,7 +471,12 @@ private fun LabeledSlider(label: String, value: Float, onChange: (Float) -> Unit
 }
 
 @Composable
-private fun SettingsDialog(driver: MidiDriverType, onSelect: (MidiDriverType) -> Unit, onDismiss: () -> Unit) {
+private fun SettingsDialog(
+    driver: MidiDriverType,
+    onSelect: (MidiDriverType) -> Unit,
+    onShowLicenses: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("MIDI input driver") },
@@ -394,6 +494,7 @@ private fun SettingsDialog(driver: MidiDriverType, onSelect: (MidiDriverType) ->
                     detail = "Direct USB access. Use for keyboards Android does not list, e.g. Yamaha PSR series.",
                     onClick = { onSelect(MidiDriverType.USB_MIDI_DRIVER) },
                 )
+                TextButton(onClick = onShowLicenses) { Text("About & licences") }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },

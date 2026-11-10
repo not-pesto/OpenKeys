@@ -34,6 +34,7 @@ callbacks in `app/src/main/kotlin/io/github/openkeys/midi/KshojiMidiInput.kt`.
 
 ## Open items before first release
 
-- Add verbatim BSD copyright notices and the Apache-2.0 NOTICE (if any) for each library.
-- Show these notices inside the app (e.g. an About/Licenses screen).
+- Opus license text is taken from upstream v1.5.2; confirm against the exact bundled Opus version.
 - SoundFonts are user-imported; none are bundled.
+
+Full license texts are in `licenses/` and are shown in the app under Settings → About & licences.

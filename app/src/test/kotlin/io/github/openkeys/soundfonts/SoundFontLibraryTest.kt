@@ -32,6 +32,18 @@ class SoundFontLibraryTest {
     }
 
     @Test
+    fun removeDeletesEntryAndFile() = runBlocking {
+        val lib = library()
+        val a = SoundFontEntry("a", "Piano.sf2", "a.sf")
+        lib.newFile("a").writeText("x")
+        lib.add(a)
+        lib.remove("a")
+        assertTrue(lib.entries.value.isEmpty())
+        assertTrue(!lib.file(a).exists())
+        assertTrue(library().apply { load() }.entries.value.isEmpty())
+    }
+
+    @Test
     fun corruptIndexLoadsEmpty() = runBlocking {
         tmp.root.resolve("sf").apply { mkdirs() }.resolve("index.json").writeText("{not json")
         val lib = library().apply { load() }

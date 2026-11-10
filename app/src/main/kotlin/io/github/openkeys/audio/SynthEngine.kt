@@ -17,6 +17,7 @@ interface SynthEngine : AutoCloseable {
     /** Blocking; call off the UI and MIDI threads. Returns an engine id, or null on failure. */
     fun loadSoundFont(path: String): Int?
     fun patches(soundFontId: Int): List<Patch>
+    fun unloadSoundFont(soundFontId: Int)
     fun selectProgram(slot: VoiceSlotId, soundFontId: Int, bank: Int, program: Int): Boolean
     fun setSlotVolume(slot: VoiceSlotId, volume: Float)
     fun setReverb(level: Float)

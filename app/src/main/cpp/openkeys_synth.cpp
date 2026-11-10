@@ -111,6 +111,10 @@ JNIEXPORT jobjectArray JNICALL JNI_FN(nativePatchNames)(JNIEnv *env, jclass, jlo
     return result;
 }
 
+JNIEXPORT void JNICALL JNI_FN(nativeUnloadSoundFont)(JNIEnv *, jclass, jlong handle, jint sfontId) {
+    fluid_synth_sfunload(synthOf(handle), sfontId, 1);
+}
+
 JNIEXPORT jboolean JNICALL JNI_FN(nativeProgramSelect)(JNIEnv *, jclass, jlong handle, jint chan, jint sfontId,
                                                        jint bank, jint program) {
     return fluid_synth_program_select(synthOf(handle), chan, sfontId, bank, program) == FLUID_OK;

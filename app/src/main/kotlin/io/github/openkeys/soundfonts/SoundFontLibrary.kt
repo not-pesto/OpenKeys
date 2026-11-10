@@ -52,6 +52,16 @@ class SoundFontLibrary(
         _entries.value = next
     }
 
+    suspend fun remove(id: String) = mutex.withLock {
+        val entry = entries.value.firstOrNull { it.id == id } ?: return@withLock
+        val next = entries.value - entry
+        withContext(io) {
+            write(next)
+            file(entry).delete()
+        }
+        _entries.value = next
+    }
+
     private fun write(list: List<SoundFontEntry>) {
         dir.mkdirs()
         val tmp = File(dir, "index.json.tmp")

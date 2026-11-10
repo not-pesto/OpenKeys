@@ -27,6 +27,8 @@ class FluidSynthEngine private constructor(private var handle: Long) : SynthEngi
             .sortedWith(compareBy({ it.bank }, { it.program }))
     }
 
+    override fun unloadSoundFont(soundFontId: Int) = nativeUnloadSoundFont(live(), soundFontId)
+
     override fun selectProgram(slot: VoiceSlotId, soundFontId: Int, bank: Int, program: Int): Boolean =
         nativeProgramSelect(live(), slot.channel(), soundFontId, bank, program)
 
@@ -65,6 +67,7 @@ class FluidSynthEngine private constructor(private var handle: Long) : SynthEngi
         @JvmStatic private external fun nativeCreate(sampleRate: Int): Long
         @JvmStatic private external fun nativeDestroy(handle: Long)
         @JvmStatic private external fun nativeLoadSoundFont(handle: Long, path: String): Int
+        @JvmStatic private external fun nativeUnloadSoundFont(handle: Long, sfontId: Int)
         @JvmStatic private external fun nativePatchNumbers(handle: Long, sfontId: Int): IntArray
         @JvmStatic private external fun nativePatchNames(handle: Long, sfontId: Int): Array<String>
         @JvmStatic private external fun nativeProgramSelect(handle: Long, chan: Int, sfontId: Int, bank: Int, program: Int): Boolean

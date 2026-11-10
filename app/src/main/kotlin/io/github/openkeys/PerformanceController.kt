@@ -173,6 +173,32 @@ class PerformanceController(
         }
     }
 
+    /** Names of saved presets (and the unsaved working setup) that reference [soundFontId]. */
+    fun soundFontUsers(soundFontId: String): List<String> {
+        val saved = presets.presets.value.filter { soundFontId in it.soundFontIds() }.map { it.name }
+        val current = _current.value
+        val unsaved = soundFontId in current.soundFontIds() && presets.presets.value.none { it == current }
+        return if (unsaved) saved + "current unsaved setup" else saved
+    }
+
+    /** Referencing slots stay as-is and show "Missing SoundFont" until reassigned. */
+    fun removeSoundFont(soundFontId: String) {
+        scope.launch {
+            panic()
+            withContext(engineThread) {
+                engineIds.remove(soundFontId)?.let { synth?.unloadSoundFont(it) }
+                _patches.update { it - soundFontId }
+                applied = null
+            }
+            try {
+                soundFonts.remove(soundFontId)
+            } catch (e: IOException) {
+                _message.value = "Could not remove SoundFont: ${e.message}"
+            }
+            commit(_current.value)
+        }
+    }
+
     // ---- MIDI path -------------------------------------------------------------------------
 
     fun onMidiEvent(event: MidiEvent) {
