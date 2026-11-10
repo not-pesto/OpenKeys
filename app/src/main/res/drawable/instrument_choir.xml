@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- three singers -->
+    <path
+        android:pathData="M14,26 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 M38,26 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 M25,18 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 M6,56 C6,42 18,38 24,40 M58,56 C58,42 46,38 40,40 M18,52 C18,36 46,36 46,52"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

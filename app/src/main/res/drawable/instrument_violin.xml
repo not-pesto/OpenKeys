@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- violin body with f-holes, neck, scroll, and bow -->
+    <path
+        android:pathData="M32,22 C26,22 24,26 26,30 C24,32 24,34 26,36 C21,40 21,56 32,56 C43,56 43,40 38,36 C40,34 40,32 38,30 C40,26 38,22 32,22 Z M28,38 C27,42 29,44 28,48 M36,38 C37,42 35,44 36,48 M31,22 V9 M33,22 V9 M30,6 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M50,10 L18,60"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+</vector>

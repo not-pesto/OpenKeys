@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- stage piano on an X stand -->
+    <path
+        android:pathData="M4,22 h56 v16 h-56 Z M4,28 h56 M12,28 v10 M20,28 v10 M28,28 v10 M36,28 v10 M44,28 v10 M52,28 v10 M16,38 L48,58 M48,38 L16,58"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10.5,28 h3 v6 h-3 Z M18.5,28 h3 v6 h-3 Z M34.5,28 h3 v6 h-3 Z M42.5,28 h3 v6 h-3 Z M50.5,28 h3 v6 h-3 Z" />
+</vector>

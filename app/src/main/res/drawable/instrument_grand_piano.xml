@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- lid, body, keybed, legs, pedals -->
+    <path
+        android:pathData="M8,26 L34,8 L38,11 L16,26 M6,26 L40,26 C48,26 50,32 58,32 L58,40 L6,40 Z M6,34 L58,34 M12,40 L12,54 M52,40 L52,54 M30,40 L30,50 M26,50 L34,50"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,34 h3 v-6 h-3 Z M16,34 h3 v-6 h-3 Z M24,34 h3 v-6 h-3 Z" />
+</vector>

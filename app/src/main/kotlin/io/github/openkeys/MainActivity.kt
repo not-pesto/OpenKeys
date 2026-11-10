@@ -1,13 +1,20 @@
 package io.github.openkeys
 
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,18 +22,27 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -44,9 +60,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.openkeys.audio.Patch
+import io.github.openkeys.instruments.InstrumentCategory
 import io.github.openkeys.midi.MidiConnectionState
 import io.github.openkeys.midi.MidiDriverType
 import io.github.openkeys.midi.MidiEvent
@@ -56,17 +85,26 @@ import io.github.openkeys.presets.PerformancePreset
 import io.github.openkeys.presets.VoiceSlot
 import io.github.openkeys.routing.VoiceSlotId
 import io.github.openkeys.soundfonts.SoundFontEntry
+import io.github.openkeys.ui.InstrumentArt
+import io.github.openkeys.ui.art
+import io.github.openkeys.ui.theme.OkColors
+import io.github.openkeys.ui.theme.OpenKeysTheme
+import io.github.openkeys.ui.theme.okSwitchColors
 
 class MainActivity : ComponentActivity() {
 
     private val app get() = application as OpenKeysApp
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            OpenKeysTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = OkColors.Background) {
                     PerformanceScreen(app, ::displayName)
                 }
             }
@@ -83,6 +121,8 @@ class MainActivity : ComponentActivity() {
             if (it.moveToFirst()) it.getString(0) else null
         } ?: uri.lastPathSegment ?: "SoundFont"
 }
+
+private const val TAGLINE = "Open Source MIDI Platform for Music Performers"
 
 @Composable
 private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
@@ -104,106 +144,102 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
         if (uri != null) perf.importSoundFont(displayName(uri)) { context.contentResolver.openInputStream(uri) }
     }
 
-    Column(
-        modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("OpenKeys", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { showSettings = true }) { Text("Settings") }
-            Button(onClick = perf::panic) { Text("All notes off") }
-        }
+    BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        val wide = maxWidth > 800.dp
+        val compact = maxWidth < 600.dp
+        Column(
+            modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Header(
+                wide = wide,
+                compact = compact,
+                midi = midi,
+                onSettings = { showSettings = true },
+                onPanic = perf::panic,
+            )
 
-        message?.let {
-            Card {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
-                    TextButton(onClick = perf::dismissMessage) { Text("Dismiss") }
-                }
-            }
-        }
-
-        MidiSection(midi, lastEvent)
-
-        if (presets.isNotEmpty()) {
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                presets.forEach { p ->
-                    if (p.id == preset.id) {
-                        Button(onClick = { perf.recall(p.id) }) { Text(p.name) }
-                    } else {
-                        OutlinedButton(onClick = { perf.recall(p.id) }) { Text(p.name) }
+            message?.let {
+                OkCard(borderColor = OkColors.Error) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(it, color = OkColors.Error, modifier = Modifier.weight(1f))
+                        TextButton(onClick = perf::dismissMessage) { Text("Dismiss") }
                     }
                 }
             }
-        }
 
-        PresetSection(
-            preset = preset,
-            presets = presets,
-            onRecall = perf::recall,
-            onRename = { name -> perf.update { it.copy(name = name) } },
-            onSave = perf::save,
-            onSaveAsNew = perf::saveAsNew,
-            onDelete = perf::delete,
-        )
-
-        SoundFontSection(
-            soundFonts = soundFonts,
-            importing = importing,
-            onImport = { pickSoundFont.launch(arrayOf("*/*")) },
-            usersOf = perf::soundFontUsers,
-            onRemove = perf::removeSoundFont,
-        )
-
-        Card {
-            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Split", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.width(12.dp))
-                Switch(checked = preset.splitEnabled, onCheckedChange = { on -> perf.update { it.copy(splitEnabled = on) } })
-                Spacer(Modifier.width(24.dp))
-                Text("Split note: ")
-                Stepper(
-                    label = MidiNote.name(preset.splitNote),
-                    enabled = preset.splitEnabled,
-                    steps = listOf(-12, -1, 1, 12),
-                    onStep = { d -> perf.update { it.copy(splitNote = (it.splitNote + d).coerceIn(MidiNote.MIN, MidiNote.MAX)) } },
-                )
-            }
-        }
-
-        BoxWithConstraints {
-            val wide = maxWidth > 800.dp
-            val slots: @Composable (Modifier) -> Unit = { mod ->
-                VoiceSlotId.entries.forEach { id ->
-                    SlotCard(
-                        modifier = mod,
-                        label = id.label(),
-                        slot = preset.slot(id),
-                        inactive = id == VoiceSlotId.LEFT_1 && !preset.splitEnabled,
-                        soundFonts = soundFonts,
-                        patches = preset.slot(id).soundFontId?.let { patches[it] }.orEmpty(),
-                        onChange = { transform -> perf.updateSlot(id, transform) },
-                        onSelectSoundFont = { sf -> perf.selectSoundFont(id, sf) },
-                    )
+            if (presets.isNotEmpty()) {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    presets.forEach { p ->
+                        if (p.id == preset.id) {
+                            Button(onClick = { perf.recall(p.id) }, shape = MaterialTheme.shapes.small) { Text(p.name) }
+                        } else {
+                            OutlinedButton(onClick = { perf.recall(p.id) }, shape = MaterialTheme.shapes.small) { Text(p.name) }
+                        }
+                    }
                 }
             }
-            if (wide) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { slots(Modifier.weight(1f)) }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { slots(Modifier.fillMaxWidth()) }
-            }
-        }
 
-        Card {
-            Column(Modifier.padding(12.dp)) {
-                Text("Master effects", style = MaterialTheme.typography.titleMedium)
-                LabeledSlider("Reverb", preset.masterReverb) { v -> perf.update { it.copy(masterReverb = v) } }
-                LabeledSlider("Chorus", preset.masterChorus) { v -> perf.update { it.copy(masterChorus = v) } }
+            Box {
+                val slots: @Composable (Modifier) -> Unit = { mod ->
+                    VoiceSlotId.entries.forEach { id ->
+                        SlotCard(
+                            modifier = mod,
+                            label = id.label(),
+                            slot = preset.slot(id),
+                            inactive = id == VoiceSlotId.LEFT_1 && !preset.splitEnabled,
+                            compact = compact,
+                            soundFonts = soundFonts,
+                            patches = preset.slot(id).soundFontId?.let { patches[it] }.orEmpty(),
+                            onChange = { transform -> perf.updateSlot(id, transform) },
+                            onSelectSoundFont = { sf -> perf.selectSoundFont(id, sf) },
+                        )
+                    }
+                }
+                if (wide) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { slots(Modifier.weight(1f)) }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { slots(Modifier.fillMaxWidth()) }
+                }
             }
+
+            SplitSection(
+                enabled = preset.splitEnabled,
+                splitNote = preset.splitNote,
+                onToggle = { on -> perf.update { it.copy(splitEnabled = on) } },
+                onStep = { d -> perf.update { it.copy(splitNote = (it.splitNote + d).coerceIn(MidiNote.MIN, MidiNote.MAX)) } },
+            )
+
+            PresetSection(
+                preset = preset,
+                presets = presets,
+                onRecall = perf::recall,
+                onRename = { name -> perf.update { it.copy(name = name) } },
+                onSave = perf::save,
+                onSaveAsNew = perf::saveAsNew,
+                onDelete = perf::delete,
+            )
+
+            OkCard {
+                Column(Modifier.padding(14.dp)) {
+                    SectionTitle("Master effects")
+                    LabeledSlider("Reverb", preset.masterReverb) { v -> perf.update { it.copy(masterReverb = v) } }
+                    LabeledSlider("Chorus", preset.masterChorus) { v -> perf.update { it.copy(masterChorus = v) } }
+                }
+            }
+
+            MidiSection(midi, lastEvent)
+
+            SoundFontSection(
+                soundFonts = soundFonts,
+                importing = importing,
+                onImport = { pickSoundFont.launch(arrayOf("*/*")) },
+                usersOf = perf::soundFontUsers,
+                onRemove = perf::removeSoundFont,
+            )
         }
     }
 
@@ -219,6 +255,153 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
 }
 
 @Composable
+private fun Header(wide: Boolean, compact: Boolean, midi: MidiInput, onSettings: () -> Unit, onPanic: () -> Unit) {
+    val state by midi.state.collectAsState()
+    val brand: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Image(
+                painter = painterResource(R.drawable.openkeys_mark),
+                contentDescription = null,
+                modifier = Modifier.height(if (compact) 28.dp else 36.dp).aspectRatio(MARK_ASPECT),
+            )
+            Text(
+                buildAnnotatedString {
+                    append("Open")
+                    withStyle(SpanStyle(color = OkColors.Cyan)) { append("Keys") }
+                },
+                style = MaterialTheme.typography.headlineSmall,
+                fontStyle = FontStyle.Italic,
+                fontWeight = FontWeight.Bold,
+            )
+            if (wide) {
+                Box(Modifier.width(1.dp).height(32.dp).background(OkColors.Border))
+                Text(TAGLINE, style = MaterialTheme.typography.bodySmall, color = OkColors.TextSecondary, modifier = Modifier.width(180.dp))
+            }
+        }
+    }
+    val controls: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MidiStatusChip(state)
+            OutlinedButton(onClick = onSettings, shape = MaterialTheme.shapes.small) { Text("Settings") }
+            Button(onClick = onPanic, shape = MaterialTheme.shapes.small) { Text("All notes off") }
+        }
+    }
+    if (compact) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            brand()
+            controls()
+        }
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            brand()
+            Spacer(Modifier.weight(1f))
+            controls()
+        }
+    }
+    HorizontalDivider(color = OkColors.Border)
+}
+
+private const val MARK_ASPECT = 715f / 245f
+
+@Composable
+private fun MidiStatusChip(state: MidiConnectionState) {
+    val (label, color) = when (state) {
+        is MidiConnectionState.Connected -> "MIDI connected" to OkColors.Success
+        is MidiConnectionState.Connecting -> "Connecting…" to OkColors.Cyan
+        MidiConnectionState.Disconnected -> "No MIDI device" to OkColors.TextMuted
+        is MidiConnectionState.Error -> "MIDI error" to OkColors.Error
+    }
+    val shape = RoundedCornerShape(50)
+    Row(
+        Modifier
+            .border(1.dp, color.copy(alpha = 0.6f), shape)
+            .background(color.copy(alpha = 0.12f), shape)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(8.dp).background(color, CircleShape))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (state is MidiConnectionState.Disconnected) OkColors.TextSecondary else color,
+        )
+    }
+}
+
+@Composable
+private fun OkCard(
+    modifier: Modifier = Modifier,
+    borderColor: Color = OkColors.Border,
+    borderWidth: Dp = 1.dp,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        color = OkColors.Card,
+        contentColor = OkColors.TextPrimary,
+        border = BorderStroke(borderWidth, borderColor),
+        content = content,
+    )
+}
+
+@Composable
+private fun SectionTitle(text: String, modifier: Modifier = Modifier, color: Color = OkColors.TextSecondary) {
+    Text(text.uppercase(), style = MaterialTheme.typography.labelMedium, color = color, modifier = modifier)
+}
+
+@Composable
+private fun SplitSection(enabled: Boolean, splitNote: Int, onToggle: (Boolean) -> Unit, onStep: (Int) -> Unit) {
+    OkCard {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Keyboard split", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.width(12.dp))
+                Switch(checked = enabled, onCheckedChange = onToggle, colors = okSwitchColors())
+                Spacer(Modifier.width(24.dp))
+                Text("Split point", color = OkColors.TextSecondary)
+                Stepper(
+                    label = MidiNote.name(splitNote),
+                    enabled = enabled,
+                    steps = listOf(-12, -1, 1, 12),
+                    onStep = onStep,
+                )
+            }
+            SplitBar(enabled, splitNote)
+        }
+    }
+}
+
+@Composable
+private fun SplitBar(enabled: Boolean, splitNote: Int) {
+    val left = if (enabled) splitNote / 128f else 0f
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp))) {
+            if (left > 0f) {
+                Box(Modifier.weight(left).fillMaxHeight().background(OkColors.Cyan.copy(alpha = 0.7f)))
+                Box(Modifier.width(2.dp).fillMaxHeight().background(OkColors.TextPrimary))
+            }
+            Box(
+                Modifier.weight(1f - left).fillMaxHeight()
+                    .background(if (enabled) OkColors.Primary.copy(alpha = 0.8f) else OkColors.Border),
+            )
+        }
+        Row {
+            if (enabled) {
+                Text("Left 1 · below ${MidiNote.name(splitNote)}", style = MaterialTheme.typography.bodySmall, color = OkColors.Cyan)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (enabled) "Right 1 + Right 2" else "Right 1 + Right 2 · full keyboard",
+                style = MaterialTheme.typography.bodySmall,
+                color = OkColors.TextSecondary,
+            )
+        }
+    }
+}
+
+@Composable
 private fun SoundFontSection(
     soundFonts: List<SoundFontEntry>,
     importing: Boolean,
@@ -227,15 +410,15 @@ private fun SoundFontSection(
     onRemove: (String) -> Unit,
 ) {
     var removing by remember { mutableStateOf<SoundFontEntry?>(null) }
-    Card {
-        Column(Modifier.padding(12.dp)) {
+    OkCard {
+        Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("SoundFonts", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Button(onClick = onImport, enabled = !importing) {
+                SectionTitle("SoundFonts", Modifier.weight(1f))
+                Button(onClick = onImport, enabled = !importing, shape = MaterialTheme.shapes.small) {
                     Text(if (importing) "Importing…" else "Import SoundFont")
                 }
             }
-            if (soundFonts.isEmpty()) Text("Import an SF2 or SF3 file to start playing.")
+            if (soundFonts.isEmpty()) Text("Import an SF2 or SF3 file to start playing.", color = OkColors.TextSecondary)
             soundFonts.forEach { sf ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(sf.name, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -274,6 +457,7 @@ private fun LicensesDialog(onDismiss: () -> Unit) {
         title = { Text("About & licences") },
         text = {
             Column {
+                Text(TAGLINE, color = OkColors.Cyan, style = MaterialTheme.typography.bodyMedium)
                 Text("OpenKeys ${BuildConfig.VERSION_NAME}. Apache-2.0. Uses FluidSynth (LGPL-2.1) and Kshoji USB-MIDI-Driver (Apache-2.0).")
                 Row(Modifier.horizontalScroll(rememberScrollState())) {
                     files.forEach { f ->
@@ -297,8 +481,9 @@ private fun LicensesDialog(onDismiss: () -> Unit) {
 private fun MidiSection(midi: MidiInput, lastEvent: MidiEvent?) {
     val state by midi.state.collectAsState()
     val devices by midi.devices.collectAsState()
-    Card {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    OkCard {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle("MIDI input")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = when (val s = state) {
@@ -309,22 +494,23 @@ private fun MidiSection(midi: MidiInput, lastEvent: MidiEvent?) {
                         is MidiConnectionState.Error -> s.message
                     },
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (state is MidiConnectionState.Error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    color = if (state is MidiConnectionState.Error) OkColors.Error else OkColors.TextPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 if (state is MidiConnectionState.Connected) {
-                    OutlinedButton(onClick = midi::disconnect) { Text("Disconnect") }
+                    OutlinedButton(onClick = midi::disconnect, shape = MaterialTheme.shapes.small) { Text("Disconnect") }
                 } else if (!midi.supportsDeviceSelection) {
-                    OutlinedButton(onClick = { midi.connect(0) }) { Text("Scan") }
+                    OutlinedButton(onClick = { midi.connect(0) }, shape = MaterialTheme.shapes.small) { Text("Scan") }
                 }
             }
             if (midi.supportsDeviceSelection && state !is MidiConnectionState.Connected) {
-                if (devices.isEmpty()) Text("No MIDI input devices found. Try the USB MIDI Driver in Settings.")
+                if (devices.isEmpty()) Text("No MIDI input devices found. Try the USB MIDI Driver in Settings.", color = OkColors.TextSecondary)
                 devices.forEach { d -> TextButton(onClick = { midi.connect(d.id) }) { Text(d.name) } }
             }
             Text(
                 text = lastEvent?.let(::describe) ?: "Play a key to test input",
                 style = MaterialTheme.typography.bodySmall,
+                color = if (lastEvent != null) OkColors.Cyan else OkColors.TextMuted,
             )
         }
     }
@@ -343,9 +529,9 @@ private fun PresetSection(
     var confirmDelete by remember { mutableStateOf(false) }
     var name by remember(preset.id) { mutableStateOf(preset.name) }
     val saved = presets.firstOrNull { it.id == preset.id }
-    Card {
+    OkCard {
         Row(
-            Modifier.padding(12.dp),
+            Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -363,12 +549,15 @@ private fun PresetSection(
                 },
                 label = { Text("Name") },
                 singleLine = true,
+                shape = MaterialTheme.shapes.small,
                 modifier = Modifier.weight(1f),
             )
-            Button(onClick = onSave, enabled = name.isNotBlank() && saved != preset) {
+            Button(onClick = onSave, enabled = name.isNotBlank() && saved != preset, shape = MaterialTheme.shapes.small) {
                 Text(if (saved == null) "Save" else if (saved == preset) "Saved" else "Save*")
             }
-            OutlinedButton(onClick = { onSaveAsNew("$name copy") }, enabled = name.isNotBlank()) { Text("Save as new") }
+            OutlinedButton(onClick = { onSaveAsNew("$name copy") }, enabled = name.isNotBlank(), shape = MaterialTheme.shapes.small) {
+                Text("Save as new")
+            }
             TextButton(onClick = { confirmDelete = true }, enabled = saved != null) { Text("Delete") }
         }
     }
@@ -391,26 +580,65 @@ private fun SlotCard(
     label: String,
     slot: VoiceSlot,
     inactive: Boolean,
+    compact: Boolean,
     soundFonts: List<SoundFontEntry>,
     patches: List<Patch>,
     onChange: ((VoiceSlot) -> VoiceSlot) -> Unit,
     onSelectSoundFont: (String) -> Unit,
 ) {
-    Card(modifier) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val patch = patches.firstOrNull { it.bank == slot.bank && it.program == slot.program }
+    val sfName = slot.soundFontId?.let { id -> soundFonts.firstOrNull { it.id == id }?.name ?: "Missing SoundFont" } ?: "No SoundFont"
+    val art = remember(slot.soundFontId, slot.bank, slot.program, patch?.name) {
+        slot.soundFontId?.let { InstrumentCategory.of(slot.bank, slot.program, patch?.name)?.art() }
+    }
+    val active = slot.enabled && !inactive
+    OkCard(
+        modifier = modifier,
+        borderColor = if (active) OkColors.Primary else OkColors.Border,
+        borderWidth = if (active) 2.dp else 1.dp,
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Switch(checked = slot.enabled, onCheckedChange = { on -> onChange { it.copy(enabled = on) } })
+                SectionTitle(label, Modifier.weight(1f), color = if (active) OkColors.Cyan else OkColors.TextSecondary)
+                Switch(
+                    checked = slot.enabled,
+                    onCheckedChange = { on -> onChange { it.copy(enabled = on) } },
+                    colors = okSwitchColors(),
+                )
             }
-            if (inactive) Text("Inactive while split is off", style = MaterialTheme.typography.bodySmall)
-            val sfName = slot.soundFontId?.let { id -> soundFonts.firstOrNull { it.id == id }?.name ?: "Missing SoundFont" } ?: "None"
+            HorizontalDivider(color = OkColors.Border)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val imageSize = (maxWidth * if (compact) 0.18f else 0.26f).coerceIn(40.dp, 112.dp)
+                Row(
+                    Modifier.alpha(if (active) 1f else 0.6f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            patch?.name ?: if (slot.soundFontId == null) "No instrument" else "Program ${slot.program}",
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(sfName, style = MaterialTheme.typography.bodySmall, color = OkColors.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        when {
+                            inactive -> Text("Inactive while split is off", style = MaterialTheme.typography.bodySmall, color = OkColors.Warning)
+                            !slot.enabled -> Text("Off", style = MaterialTheme.typography.bodySmall, color = OkColors.TextSecondary)
+                        }
+                    }
+                    if (art != null) {
+                        Spacer(Modifier.width(12.dp))
+                        InstrumentImage(art, Modifier.size(imageSize))
+                    }
+                }
+            }
             Picker(
                 label = "SoundFont",
                 selected = sfName,
                 options = soundFonts.map { it.id to it.name },
                 onSelect = onSelectSoundFont,
+                fill = true,
             )
-            val patch = patches.firstOrNull { it.bank == slot.bank && it.program == slot.program }
             Picker(
                 label = "Instrument",
                 selected = patch?.let(::patchLabel) ?: "${slot.bank}:${slot.program}",
@@ -419,10 +647,13 @@ private fun SlotCard(
                     val (bank, program) = key.split(":").map(String::toInt)
                     onChange { it.copy(bank = bank, program = program) }
                 },
+                fill = true,
             )
-            LabeledSlider("Volume", slot.volume) { v -> onChange { it.copy(volume = v) } }
+            HorizontalDivider(color = OkColors.Border)
+            LabeledSlider("Vol", slot.volume) { v -> onChange { it.copy(volume = v) } }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Transpose ")
+                Text("Transpose", color = OkColors.TextSecondary)
+                Spacer(Modifier.weight(1f))
                 Stepper(
                     label = "%+d".format(slot.transposeSemitones),
                     enabled = true,
@@ -439,11 +670,36 @@ private fun SlotCard(
 }
 
 @Composable
-private fun Picker(label: String, selected: String, options: List<Pair<String, String>>, onSelect: (String) -> Unit) {
+private fun InstrumentImage(art: InstrumentArt, modifier: Modifier) {
+    Image(
+        painter = painterResource(art.res),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        colorFilter = if (art.lineArt) ColorFilter.tint(OkColors.TextSecondary) else null,
+        alpha = if (art.lineArt) 0.5f else 0.8f,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun Picker(
+    label: String,
+    selected: String,
+    options: List<Pair<String, String>>,
+    onSelect: (String) -> Unit,
+    fill: Boolean = false,
+) {
     var open by remember { mutableStateOf(false) }
-    Box {
-        OutlinedButton(onClick = { open = true }, enabled = options.isNotEmpty()) {
-            Text("$label: $selected", maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Box(if (fill) Modifier.fillMaxWidth() else Modifier) {
+        OutlinedButton(
+            onClick = { open = true },
+            enabled = options.isNotEmpty(),
+            shape = MaterialTheme.shapes.small,
+            modifier = if (fill) Modifier.fillMaxWidth() else Modifier,
+        ) {
+            Text(label, color = OkColors.TextMuted, maxLines = 1)
+            Spacer(Modifier.width(8.dp))
+            Text(selected, color = OkColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { (key, text) ->
@@ -465,7 +721,8 @@ private fun Stepper(label: String, enabled: Boolean, steps: List<Int>, onStep: (
 @Composable
 private fun LabeledSlider(label: String, value: Float, onChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$label ${(value * 100).toInt()}%", modifier = Modifier.width(110.dp))
+        Text(label, color = OkColors.TextSecondary, modifier = Modifier.width(64.dp))
+        Text("${(value * 100).toInt()}%", modifier = Modifier.width(48.dp))
         Slider(value = value, onValueChange = onChange, valueRange = 0f..1f, modifier = Modifier.weight(1f))
     }
 }
@@ -510,7 +767,7 @@ private fun DriverOption(selected: Boolean, title: String, detail: String, onCli
         RadioButton(selected = selected, onClick = onClick)
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(detail, style = MaterialTheme.typography.bodySmall)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = OkColors.TextSecondary)
         }
     }
 }

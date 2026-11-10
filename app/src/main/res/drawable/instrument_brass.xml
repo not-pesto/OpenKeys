@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- trumpet: mouthpiece, lead pipe, valves, loop, bell -->
+    <path
+        android:pathData="M4,30 h6 M10,28 h34 M10,32 h34 M44,28 L60,18 V42 L44,32 M16,32 C14,44 40,44 38,32 M22,28 V20 M28,28 V20 M34,28 V20 M20,20 h4 M26,20 h4 M32,20 h4"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

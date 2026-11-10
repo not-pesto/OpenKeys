@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OpenKeys" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ok_background</item>
+    </style>
+</resources>
