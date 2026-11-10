@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 
 /**
@@ -20,6 +21,7 @@ class KshojiMidiInput(
     context: Context,
     private val onEvent: (MidiEvent) -> Unit,
     private val onConnectionLost: () -> Unit,
+    private val onOutputReady: () -> Unit,
 ) : MidiInput {
 
     private val appContext = context.applicationContext
@@ -27,6 +29,7 @@ class KshojiMidiInput(
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "openkeys-usb-midi") }
     private var driver: Driver? = null
     private val inputs = ConcurrentHashMap<MidiInputDevice, MidiDeviceEntry>()
+    private val outputs = CopyOnWriteArrayList<MidiOutputDevice>()
 
     private val _devices = MutableStateFlow<List<MidiDeviceEntry>>(emptyList())
     override val devices: StateFlow<List<MidiDeviceEntry>> = _devices.asStateFlow()
@@ -59,7 +62,21 @@ class KshojiMidiInput(
         d.close()
         if (inputs.isNotEmpty()) onConnectionLost()
         inputs.clear()
+        outputs.clear()
         publish()
+    }
+
+    override fun send(status: Int, data1: Int, data2: Int) {
+        val ch = status and 0x0F
+        for (o in outputs) {
+            when (status and 0xF0) {
+                0x80 -> o.sendMidiNoteOff(0, ch, data1, data2)
+                0x90 -> o.sendMidiNoteOn(0, ch, data1, data2)
+                0xB0 -> o.sendMidiControlChange(0, ch, data1, data2)
+                0xC0 -> o.sendMidiProgramChange(0, ch, data1)
+                0xE0 -> o.sendMidiPitchWheel(0, ch, data1 or (data2 shl 7))
+            }
+        }
     }
 
     private fun publish() {
@@ -106,8 +123,14 @@ class KshojiMidiInput(
 
         override fun onDeviceAttached(usbDevice: UsbDevice) = Unit
         override fun onDeviceDetached(usbDevice: UsbDevice) = Unit
-        override fun onMidiOutputDeviceAttached(midiOutputDevice: MidiOutputDevice) = Unit
-        override fun onMidiOutputDeviceDetached(midiOutputDevice: MidiOutputDevice) = Unit
+        override fun onMidiOutputDeviceAttached(midiOutputDevice: MidiOutputDevice) {
+            outputs += midiOutputDevice
+            onOutputReady()
+        }
+
+        override fun onMidiOutputDeviceDetached(midiOutputDevice: MidiOutputDevice) {
+            outputs -= midiOutputDevice
+        }
         override fun onMidiMiscellaneousFunctionCodes(sender: MidiInputDevice, cable: Int, byte1: Int, byte2: Int, byte3: Int) = Unit
         override fun onMidiCableEvents(sender: MidiInputDevice, cable: Int, byte1: Int, byte2: Int, byte3: Int) = Unit
         override fun onMidiSystemCommonMessage(sender: MidiInputDevice, cable: Int, bytes: ByteArray) = Unit

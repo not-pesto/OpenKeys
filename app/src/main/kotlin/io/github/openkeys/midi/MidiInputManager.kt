@@ -3,6 +3,7 @@ package io.github.openkeys.midi
 import android.content.Context
 import android.media.midi.MidiDevice
 import android.media.midi.MidiDeviceInfo
+import android.media.midi.MidiInputPort
 import android.media.midi.MidiManager
 import android.media.midi.MidiOutputPort
 import android.media.midi.MidiReceiver
@@ -12,6 +13,7 @@ import android.os.HandlerThread
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.IOException
 
 data class MidiDeviceEntry(val id: Int, val name: String)
 
@@ -30,6 +32,7 @@ class MidiInputManager(
     context: Context,
     private val onEvent: (MidiEvent) -> Unit,
     private val onConnectionLost: () -> Unit,
+    private val onOutputReady: () -> Unit,
 ) : MidiInput {
     private val midiManager: MidiManager? = context.getSystemService(MidiManager::class.java)
     private val thread = HandlerThread("openkeys-midi").apply { start() }
@@ -49,6 +52,9 @@ class MidiInputManager(
     private var connectedId: Int? = null
     private var reconnectName: String? = null
     private var generation = 0
+
+    // Written on the handler thread, read from any thread by send().
+    @Volatile private var inputPort: MidiInputPort? = null
 
     private val deviceCallback = object : MidiManager.DeviceCallback() {
         override fun onDeviceAdded(info: MidiDeviceInfo) {
@@ -150,11 +156,27 @@ class MidiInputManager(
             port = outputPort
             connectedId = info.id
             _state.value = MidiConnectionState.Connected(name)
+            if (info.inputPortCount > 0) {
+                inputPort = opened.openInputPort(0)
+                if (inputPort != null) onOutputReady()
+            }
         }, handler)
+    }
+
+    override fun send(status: Int, data1: Int, data2: Int) {
+        val p = inputPort ?: return
+        val length = if (status and 0xE0 == 0xC0) 2 else 3
+        try {
+            p.send(byteArrayOf(status.toByte(), data1.toByte(), data2.toByte()), 0, length)
+        } catch (_: IOException) {
+            // Port closed while disconnecting.
+        }
     }
 
     private fun closeCurrent() {
         generation++
+        inputPort?.close()
+        inputPort = null
         port?.close()
         device?.close()
         port = null

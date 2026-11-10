@@ -7,6 +7,7 @@ import io.github.openkeys.presets.PerformancePreset
 import io.github.openkeys.presets.PresetFormatException
 import io.github.openkeys.presets.PresetRepository
 import io.github.openkeys.presets.VoiceSlot
+import io.github.openkeys.routing.MidiEcho
 import io.github.openkeys.routing.NoteRouter
 import io.github.openkeys.routing.RoutedEvent
 import io.github.openkeys.routing.VoiceSlotId
@@ -62,6 +63,8 @@ class PerformanceController(
     // Confined to engineThread.
     private val engineIds = HashMap<String, Int>()
     private var applied: PerformancePreset? = null
+
+    @Volatile private var echo: MidiEcho? = null
 
     fun start() {
         scope.launch(engineThread) { pendingApply.filterNotNull().collect { applyToEngine(it) } }
@@ -201,6 +204,17 @@ class PerformanceController(
 
     // ---- MIDI path -------------------------------------------------------------------------
 
+    /** Echoes routed notes, pedals, bend, program and volume to an external device; null turns it off. */
+    fun setEcho(send: ((status: Int, data1: Int, data2: Int) -> Unit)?) {
+        echo?.silence()
+        echo = send?.let { MidiEcho(it).apply { setup(_current.value) } }
+    }
+
+    /** Re-sends programs and volumes, e.g. after the device reconnects. */
+    fun resendEchoSetup() {
+        echo?.setup(_current.value, force = true)
+    }
+
     fun onMidiEvent(event: MidiEvent) {
         _lastEvent.value = event
         when (event) {
@@ -208,9 +222,15 @@ class PerformanceController(
             is MidiEvent.NoteOff -> dispatch(synchronized(router) { router.noteOff(event.note) })
             is MidiEvent.ControlChange -> when (event.controller) {
                 CC_ALL_SOUND_OFF, CC_ALL_NOTES_OFF -> panic()
-                in PERFORMANCE_CCS -> VoiceSlotId.entries.forEach { synth?.controlChange(it, event.controller, event.value) }
+                in PERFORMANCE_CCS -> {
+                    VoiceSlotId.entries.forEach { synth?.controlChange(it, event.controller, event.value) }
+                    echo?.controlChange(event.controller, event.value)
+                }
             }
-            is MidiEvent.PitchBend -> VoiceSlotId.entries.forEach { synth?.pitchBend(it, event.value) }
+            is MidiEvent.PitchBend -> {
+                VoiceSlotId.entries.forEach { synth?.pitchBend(it, event.value) }
+                echo?.pitchBend(event.value)
+            }
         }
     }
 
@@ -221,14 +241,20 @@ class PerformanceController(
             synth?.controlChange(it, CC_SUSTAIN, 0)
             synth?.pitchBend(it, 0)
         }
+        echo?.run {
+            controlChange(CC_SUSTAIN, 0)
+            pitchBend(0)
+        }
     }
 
     fun panic() {
         onConnectionLost()
         synth?.allSoundsOff()
+        echo?.silence()
     }
 
     private fun dispatch(events: List<RoutedEvent>) {
+        echo?.routed(events)
         val engine = synth ?: return
         for (e in events) {
             when (e) {
@@ -243,6 +269,7 @@ class PerformanceController(
     private fun commit(preset: PerformancePreset) {
         synchronized(router) { router.config = preset.toRoutingConfig() }
         pendingApply.value = preset
+        echo?.setup(preset)
     }
 
     private fun applyToEngine(p: PerformancePreset) {

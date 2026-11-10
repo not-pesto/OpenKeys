@@ -16,4 +16,7 @@ interface MidiInput {
     fun connect(deviceId: Int)
     fun disconnect()
     fun release()
+
+    /** Sends a channel voice message to the connected device; no-op when it has no MIDI input. Thread-safe. */
+    fun send(status: Int, data1: Int, data2: Int)
 }

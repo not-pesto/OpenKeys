@@ -30,6 +30,9 @@ class OpenKeysApp : Application() {
     private lateinit var _midi: MutableStateFlow<MidiInput>
     val midi: StateFlow<MidiInput> get() = _midi
 
+    private val _echoToKeyboard = MutableStateFlow(false)
+    val echoToKeyboard: StateFlow<Boolean> = _echoToKeyboard.asStateFlow()
+
     override fun onCreate() {
         super.onCreate()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -47,6 +50,13 @@ class OpenKeysApp : Application() {
             ?: MidiDriverType.ANDROID_MIDI
         _midiDriver.value = driver
         _midi = MutableStateFlow(createMidi(driver).also { it.start() })
+        if (prefs.getBoolean(KEY_ECHO, false)) setEchoToKeyboard(true)
+    }
+
+    fun setEchoToKeyboard(on: Boolean) {
+        prefs.edit().putBoolean(KEY_ECHO, on).apply()
+        _echoToKeyboard.value = on
+        performance.setEcho(if (on) { s, d1, d2 -> _midi.value.send(s, d1, d2) } else null)
     }
 
     fun setMidiDriver(type: MidiDriverType) {
@@ -59,11 +69,14 @@ class OpenKeysApp : Application() {
     }
 
     private fun createMidi(type: MidiDriverType): MidiInput = when (type) {
-        MidiDriverType.ANDROID_MIDI -> MidiInputManager(this, performance::onMidiEvent, performance::onConnectionLost)
-        MidiDriverType.USB_MIDI_DRIVER -> KshojiMidiInput(this, performance::onMidiEvent, performance::onConnectionLost)
+        MidiDriverType.ANDROID_MIDI ->
+            MidiInputManager(this, performance::onMidiEvent, performance::onConnectionLost, performance::resendEchoSetup)
+        MidiDriverType.USB_MIDI_DRIVER ->
+            KshojiMidiInput(this, performance::onMidiEvent, performance::onConnectionLost, performance::resendEchoSetup)
     }
 
     private companion object {
         const val KEY_MIDI_DRIVER = "midi_driver"
+        const val KEY_ECHO = "echo_to_keyboard"
     }
 }

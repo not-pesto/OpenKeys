@@ -140,6 +140,7 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
     val lastEvent by perf.lastEvent.collectAsState()
     val midi by app.midi.collectAsState()
     val driver by app.midiDriver.collectAsState()
+    val echo by app.echoToKeyboard.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
     var showLicenses by remember { mutableStateOf(false) }
 
@@ -251,6 +252,8 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
         SettingsDialog(
             driver = driver,
             onSelect = app::setMidiDriver,
+            echo = echo,
+            onEcho = app::setEchoToKeyboard,
             onShowLicenses = { showSettings = false; showLicenses = true },
             onDismiss = { showSettings = false },
         )
@@ -765,6 +768,8 @@ private fun LabeledSlider(label: String, value: Float, onChange: (Float) -> Unit
 private fun SettingsDialog(
     driver: MidiDriverType,
     onSelect: (MidiDriverType) -> Unit,
+    echo: Boolean,
+    onEcho: (Boolean) -> Unit,
     onShowLicenses: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -785,6 +790,21 @@ private fun SettingsDialog(
                     detail = "Direct USB access. Use for keyboards Android does not list, e.g. Yamaha PSR series.",
                     onClick = { onSelect(MidiDriverType.USB_MIDI_DRIVER) },
                 )
+                HorizontalDivider(color = OkColors.Border, modifier = Modifier.padding(vertical = 8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Echo routed notes to keyboard", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Sends split/octave-routed notes, pedals, program and volume back to the keyboard " +
+                                "(Left 1 → ch 3, Right 1 → ch 1, Right 2 → ch 2). Set Local Control off on the " +
+                                "keyboard to avoid doubled notes.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OkColors.TextSecondary,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = echo, onCheckedChange = onEcho, colors = okSwitchColors())
+                }
                 TextButton(onClick = onShowLicenses) { Text("About & licences") }
             }
         },
