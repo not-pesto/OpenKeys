@@ -24,7 +24,6 @@ class PerformanceControllerSustainTest {
         val controller = controller(synth)
         controller.update {
             it.copy(
-                splitEnabled = true,
                 splitNote = 60,
                 right2 = it.right2.copy(enabled = true),
                 left1 = it.left1.copy(enabled = true),

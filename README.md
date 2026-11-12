@@ -22,7 +22,7 @@ The five tabs remain available while performing:
 - **Save Preset:** name the current setup, save or update it, or save it as a new preset. Presets retain slot settings, split, reverb and chorus.
 - **Settings:** configure the performance setup, MIDI input/output and SoundFonts, and view licence information.
 
-In **Settings → Performance**, adjust the global transpose in semitones, enable the per-preset keyboard split, and choose its split point. Per-slot volume and octave controls are on the Mixer. With split enabled, Left 1 plays below the split point and the enabled Right slots play at or above it; without split, the Right slots cover the keyboard and Left 1 is inactive. Global transpose persists on the device independently of presets and is applied after zone selection, alongside each slot's octave setting.
+In **Settings → Performance**, adjust the global transpose and the per-preset split key. On the Mixer, enable **Left 1** to activate the split; only the current split-key value appears beside the Left 1 header. Left 1 plays below that key, while enabled Right slots play at or above it. With Left 1 disabled, enabled Right slots cover the full keyboard. Per-slot volume and octave controls are also on the Mixer. Global transpose persists on the device independently of presets and is applied after zone selection, alongside each slot's octave setting.
 
 In **Settings → Input**, choose Android MIDI or the Kshoji USB driver, connect a device and use All notes off. Input currently accepts all MIDI channels; slot output channels are fixed (Right 1: 1, Right 2: 2, Left 1: 3). **Output** controls MIDI echo. **Sound** manages user-imported SoundFonts and instrument names. FluidSynth/Oboe audio configuration is automatic.
 

@@ -62,7 +62,7 @@ class NoteRouter(config: RoutingConfig = RoutingConfig()) {
     private fun targetsFor(note: Int): List<SlotNote> {
         val c = config
         val slots = when {
-            !c.splitEnabled -> listOf(VoiceSlotId.RIGHT_1, VoiceSlotId.RIGHT_2)
+            !c.left1.enabled -> listOf(VoiceSlotId.RIGHT_1, VoiceSlotId.RIGHT_2)
             note < c.splitNote -> listOf(VoiceSlotId.LEFT_1)
             else -> listOf(VoiceSlotId.RIGHT_1, VoiceSlotId.RIGHT_2)
         }

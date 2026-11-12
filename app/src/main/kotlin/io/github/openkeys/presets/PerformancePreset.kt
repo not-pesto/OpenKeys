@@ -34,7 +34,6 @@ data class VoiceSlot(
 data class PerformancePreset(
     val id: String,
     val name: String,
-    val splitEnabled: Boolean = false,
     val splitNote: Int = MidiNote.MIDDLE_C,
     val right1: VoiceSlot = VoiceSlot(enabled = true),
     val right2: VoiceSlot = VoiceSlot(),
@@ -68,7 +67,6 @@ data class PerformancePreset(
     }
 
     fun toRoutingConfig() = RoutingConfig(
-        splitEnabled = splitEnabled,
         splitNote = splitNote,
         right1 = right1.toRouting(),
         right2 = right2.toRouting(),

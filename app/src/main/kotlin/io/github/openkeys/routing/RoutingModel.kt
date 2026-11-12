@@ -10,7 +10,6 @@ data class SlotRouting(
 )
 
 data class RoutingConfig(
-    val splitEnabled: Boolean = false,
     val splitNote: Int = MidiNote.MIDDLE_C,
     val right1: SlotRouting = SlotRouting(enabled = true),
     val right2: SlotRouting = SlotRouting(),

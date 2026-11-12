@@ -78,6 +78,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -281,8 +282,8 @@ private fun MixerScreen(
                 modifier = modifier,
                 label = id.label(),
                 slot = preset.slot(id),
-                inactive = id == VoiceSlotId.LEFT_1 && !preset.splitEnabled,
                 compact = compactCards,
+                splitNote = if (id == VoiceSlotId.LEFT_1) preset.splitNote else null,
                 soundFonts = soundFonts,
                 patches = patches,
                 onChange = { transform -> onSlotChange(id, transform) },
@@ -536,44 +537,11 @@ private fun SectionTitle(text: String, modifier: Modifier = Modifier, color: Col
 }
 
 @Composable
-private fun SplitSection(enabled: Boolean, splitNote: Int, onToggle: (Boolean) -> Unit, onStep: (Int) -> Unit) {
+private fun SplitKeySection(splitNote: Int, onStep: (Int) -> Unit) {
     OkCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Keyboard split", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Switch(checked = enabled, onCheckedChange = onToggle, colors = okSwitchColors())
-            }
-            Text("Split point", color = OkColors.TextSecondary)
-            Stepper(label = MidiNote.name(splitNote), enabled = enabled, steps = listOf(-12, -1, 1, 12), onStep = onStep)
-            SplitBar(enabled, splitNote)
-        }
-    }
-}
-
-@Composable
-private fun SplitBar(enabled: Boolean, splitNote: Int) {
-    val left = if (enabled) splitNote / 128f else 0f
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp))) {
-            if (left > 0f) {
-                Box(Modifier.weight(left).fillMaxHeight().background(OkColors.Cyan.copy(alpha = 0.7f)))
-                Box(Modifier.width(2.dp).fillMaxHeight().background(OkColors.TextPrimary))
-            }
-            Box(
-                Modifier.weight(1f - left).fillMaxHeight()
-                    .background(if (enabled) OkColors.Primary.copy(alpha = 0.8f) else OkColors.Border),
-            )
-        }
-        Row {
-            if (enabled) {
-                Text("Left 1 · below ${MidiNote.name(splitNote)}", style = MaterialTheme.typography.bodySmall, color = OkColors.Cyan)
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                if (enabled) "Right 1 + Right 2" else "Right 1 + Right 2 · full keyboard",
-                style = MaterialTheme.typography.bodySmall,
-                color = OkColors.TextSecondary,
-            )
+            SectionTitle("Split key")
+            Stepper(MidiNote.name(splitNote), enabled = true, steps = listOf(-12, -1, 1, 12), onStep = onStep)
         }
     }
 }
@@ -908,8 +876,8 @@ private fun SlotCard(
     modifier: Modifier,
     label: String,
     slot: VoiceSlot,
-    inactive: Boolean,
     compact: Boolean,
+    splitNote: Int?,
     soundFonts: List<SoundFontEntry>,
     patches: Map<String, List<Patch>>,
     onChange: ((VoiceSlot) -> VoiceSlot) -> Unit,
@@ -923,7 +891,7 @@ private fun SlotCard(
     val art = remember(slot.soundFontId, slot.bank, slot.program, patch?.name) {
         slot.soundFontId?.let { InstrumentCategory.of(slot.bank, slot.program, patch?.name)?.artRes() }
     }
-    val active = slot.enabled && !inactive
+    val active = slot.enabled
     val onOctaveStep: (Int) -> Unit = { delta ->
         onChange {
             it.copy(transposeSemitones = (it.transposeSemitones + delta).coerceIn(-VoiceSlot.MAX_TRANSPOSE, VoiceSlot.MAX_TRANSPOSE))
@@ -951,13 +919,21 @@ private fun SlotCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    (if (inactive) "$label · split off" else label).uppercase(),
+                    label.uppercase(),
                     modifier = Modifier.weight(1f),
                     color = if (active) OkColors.Cyan else OkColors.TextSecondary,
                     style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                splitNote?.let { note ->
+                    Text(
+                        MidiNote.name(note),
+                        color = OkColors.Cyan,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                }
                 Switch(
                     checked = slot.enabled,
                     onCheckedChange = null,
@@ -1102,7 +1078,12 @@ private fun InstrumentPresentation(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 alignment = Alignment.CenterEnd,
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.85f)
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().aspectRatio(1f)
+                    .graphicsLayer {
+                        scaleX = 1.6f
+                        scaleY = 1.6f
+                        translationX = size.width * 0.10f
+                    }
                     .alpha(if (active) 1f else 0.5f),
             )
             Box(Modifier.matchParentSize().background(Brush.horizontalGradient(
@@ -1251,11 +1232,11 @@ private fun SettingsScreen(
                                         }
                                     }
                                 }
-                                SplitSection(
-                                    enabled = preset.splitEnabled, splitNote = preset.splitNote,
-                                    onToggle = { enabled -> onUpdate { it.copy(splitEnabled = enabled) } },
-                                    onStep = { delta -> onUpdate { it.copy(splitNote = (it.splitNote + delta).coerceIn(MidiNote.MIN, MidiNote.MAX)) } },
-                                )
+                                SplitKeySection(preset.splitNote) { delta ->
+                                    onUpdate {
+                                        it.copy(splitNote = (it.splitNote + delta).coerceIn(MidiNote.MIN, MidiNote.MAX))
+                                    }
+                                }
                                 Text("Audio engine: FluidSynth with low-latency Oboe output. Audio configuration is automatic.", color = OkColors.TextSecondary)
                             }
                             1 -> {

@@ -18,9 +18,9 @@ All items in this section are requirements for the initial release, not deferred
 
 - Android app with USB MIDI input support.
 - Three independent performance voice slots: **Right 1**, **Right 2**, and **Left 1**.
-- Optional split point configured separately for each preset.
+- Optional split activated by enabling Left 1, with a split point configured separately for each preset.
 - Layering of Right 1 and Right 2 when enabled.
-- Left 1 assigned to the lower keyboard range when split mode is enabled.
+- Enabling Left 1 assigns it to the lower keyboard range and activates the split.
 - Per-slot independent volume and transpose/octave settings.
 - Automatic MIDI channel handling initially; user channel configuration is not required for the first release.
 - User-imported SoundFonts; do not bundle SoundFont assets in the initial release.
@@ -48,9 +48,9 @@ The app has exactly three user-facing voice slots:
 
 | Slot | Role | Expected routing |
 |---|---|---|
-| Right 1 | Primary right-hand voice | Plays notes in the upper range when split is enabled; otherwise across the keyboard |
-| Right 2 | Layered right-hand voice | Plays alongside Right 1 in the upper range when enabled; otherwise across the keyboard |
-| Left 1 | Left-hand voice | Plays the lower range when split is enabled |
+| Right 1 | Primary right-hand voice | Plays notes in the upper range when Left 1 is enabled; otherwise across the keyboard |
+| Right 2 | Layered right-hand voice | Plays alongside Right 1 in the upper range when Left 1 is enabled; otherwise across the keyboard |
+| Left 1 | Left-hand voice | Enabling it activates the split and plays the lower range |
 
 Each slot should support:
 - Enable/disable.
@@ -60,12 +60,11 @@ Each slot should support:
 - A clear display of the currently selected instrument/patch.
 
 **Split behavior:**
-- Split mode is optional and can be enabled or disabled per preset.
-- When enabled, the split point is stored in that preset.
-- Notes below the split point route to Left 1 (if enabled).
+- Enabling Left 1 activates split routing; disabling Left 1 lets enabled Right slots cover the full keyboard.
+- The split point is stored in that preset.
+- Notes below the split point route to Left 1.
 - Notes at or above the split point route to enabled Right 1 and Right 2 slots.
-- When split mode is disabled, enabled Right 1 and Right 2 play across the full keyboard; Left 1 is inactive for note routing.
-- Provide a practical way to choose the split note (for example, a note selector or keyboard-range control).
+- Keep split-note adjustment in Settings and display only the current key value beside the Left 1 header.
 - Avoid duplicate or stuck notes when changing split configuration during performance.
 
 This routing definition is a product default and can be refined if needed, but Copilot should not silently change it.
@@ -86,7 +85,6 @@ This routing definition is a product default and can be refined if needed, but C
 Presets represent a complete performance setup and should include, at minimum:
 
 - Preset name and stable identifier.
-- Split enabled/disabled state.
 - Split note when enabled.
 - For each of Right 1, Right 2, and Left 1:
   - enabled state
@@ -106,7 +104,7 @@ Required preset operations:
 - Persist presets across app restarts.
 - Clearly handle a preset whose SoundFont is no longer available.
 
-Split is **not mandatory** for every preset. A preset may have split mode disabled.
+Split is **not mandatory** for every preset. A preset with Left 1 disabled uses the full keyboard for enabled Right slots.
 
 ### 3.5 Effects
 
@@ -168,7 +166,7 @@ Core views or sections:
    - Right 1, Right 2, Left 1 controls.
    - Instrument/patch selection.
    - Slot enable state and independent volume/transpose.
-   - Optional split toggle and split-note control.
+   - Left 1 enable control activates the optional split; the split key is adjusted in Settings and only its current value appears beside the Left 1 header.
    - Master reverb and chorus.
    - Preset selection and save action.
 2. **SoundFont management**
@@ -195,7 +193,6 @@ Example conceptual model (not a mandated code schema):
 data class PerformancePreset(
     val id: String,
     val name: String,
-    val splitEnabled: Boolean,
     val splitNote: Int?,
     val right1: VoiceSlot,
     val right2: VoiceSlot,
@@ -330,8 +327,8 @@ The initial release is ready for community testing when:
 - A compatible USB MIDI keyboard can be connected and its notes trigger sound.
 - Right 1 can play alone across the keyboard.
 - Right 1 and Right 2 can layer across the keyboard.
-- Split can be enabled or disabled per preset.
-- With split enabled, Left 1 plays below the split note and enabled Right slots play at/above it.
+- Enabling Left 1 activates the per-preset split; disabling it lets enabled Right slots play across the full keyboard.
+- With Left 1 enabled, it plays below the split note and enabled Right slots play at/above it.
 - Each slot has independent volume and transpose/octave controls.
 - Presets persist, can be recalled, and reproduce their voice, split, and effect settings.
 - Users can import a supported SoundFont and select patches from it.

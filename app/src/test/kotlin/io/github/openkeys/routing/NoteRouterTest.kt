@@ -14,7 +14,7 @@ class NoteRouterTest {
     private val on = SlotRouting(enabled = true)
 
     private fun splitConfig(splitNote: Int = 60) = RoutingConfig(
-        splitEnabled = true, splitNote = splitNote, right1 = on, right2 = on, left1 = on,
+        splitNote = splitNote, right1 = on, right2 = on, left1 = on,
     )
 
     @Test
@@ -25,8 +25,8 @@ class NoteRouterTest {
     }
 
     @Test
-    fun right1AndRight2LayerWithoutSplit() {
-        val router = NoteRouter(RoutingConfig(right1 = on, right2 = on, left1 = on))
+    fun right1AndRight2LayerAcrossKeyboardWhenLeftIsDisabled() {
+        val router = NoteRouter(RoutingConfig(right1 = on, right2 = on))
         assertEquals(
             listOf(NoteOn(SlotNote(RIGHT_1, 40), 90), NoteOn(SlotNote(RIGHT_2, 40), 90)),
             router.noteOn(40, 90),
@@ -34,9 +34,16 @@ class NoteRouterTest {
     }
 
     @Test
-    fun leftIsInactiveWhenSplitDisabled() {
-        val router = NoteRouter(RoutingConfig(right1 = SlotRouting(), left1 = on))
-        assertTrue(router.noteOn(30, 100).isEmpty())
+    fun leftDisabledKeepsRightSlotsAcrossKeyboard() {
+        val router = NoteRouter(RoutingConfig(right1 = on, left1 = SlotRouting()))
+        assertEquals(
+            listOf(NoteOn(SlotNote(RIGHT_1, 30), 100)),
+            router.noteOn(30, 100),
+        )
+        assertEquals(
+            listOf(NoteOn(SlotNote(RIGHT_1, 70), 100)),
+            router.noteOn(70, 100),
+        )
     }
 
     @Test
@@ -50,9 +57,9 @@ class NoteRouterTest {
     }
 
     @Test
-    fun disabledSlotsAreSkippedInSplitMode() {
-        val router = NoteRouter(splitConfig().copy(right2 = SlotRouting(), left1 = SlotRouting()))
-        assertTrue(router.noteOn(40, 100).isEmpty())
+    fun disabledRightSlotsAreSkippedInSplitMode() {
+        val router = NoteRouter(splitConfig().copy(right2 = SlotRouting()))
+        assertEquals(listOf(NoteOn(SlotNote(LEFT_1, 40), 100)), router.noteOn(40, 100))
         assertEquals(listOf(NoteOn(SlotNote(RIGHT_1, 70), 100)), router.noteOn(70, 100))
     }
 

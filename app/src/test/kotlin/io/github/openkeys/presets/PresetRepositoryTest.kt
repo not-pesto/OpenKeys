@@ -27,13 +27,13 @@ class PresetRepositoryTest {
         val a = first.create("  Piano ")
         val b = first.duplicate(a.id, "Piano copy")
         first.rename(a.id, "Grand")
-        first.save(b.copy(splitEnabled = true, splitNote = 48))
+        first.save(b.copy(splitNote = 48, left1 = b.left1.copy(enabled = true)))
 
         val second = repo()
         assertTrue(second.load().isEmpty())
         assertEquals(listOf("Grand", "Piano copy"), second.presets.value.map { it.name })
         assertEquals(48, second.presets.value[1].splitNote)
-        assertTrue(second.presets.value[1].splitEnabled)
+        assertTrue(second.presets.value[1].left1.enabled)
 
         second.delete(a.id)
         assertEquals(listOf(b.id), repo().apply { load() }.presets.value.map { it.id })

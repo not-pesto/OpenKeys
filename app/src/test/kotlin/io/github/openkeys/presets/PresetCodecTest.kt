@@ -2,6 +2,7 @@ package io.github.openkeys.presets
 
 import io.github.openkeys.routing.SlotRouting
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -10,7 +11,6 @@ class PresetCodecTest {
     private val preset = PerformancePreset(
         id = "a",
         name = "Piano + Strings / Bass",
-        splitEnabled = true,
         splitNote = 54,
         right1 = VoiceSlot(enabled = true, soundFontId = "sf1", program = 0, volume = 0.9f),
         right2 = VoiceSlot(enabled = true, soundFontId = "sf1", program = 48, volume = 0.5f, transposeSemitones = 12),
@@ -27,10 +27,11 @@ class PresetCodecTest {
     }
 
     @Test
-    fun splitIsOptionalPerPreset() {
-        val noSplit = preset.copy(id = "b", splitEnabled = false)
-        val decoded = PresetCodec.decode(PresetCodec.encode(listOf(preset, noSplit))).presets
-        assertEquals(listOf(true, false), decoded.map { it.splitEnabled })
+    fun leftOneEnableStateControlsWhetherSplitRoutingIsUsed() {
+        val config = preset.toRoutingConfig()
+        assertEquals(54, config.splitNote)
+        assertTrue(config.left1.enabled)
+        assertFalse(preset.copy(left1 = preset.left1.copy(enabled = false)).toRoutingConfig().left1.enabled)
     }
 
     @Test
@@ -44,7 +45,7 @@ class PresetCodecTest {
     @Test
     fun missingFieldsUseDefaultsAndUnknownKeysAreIgnored() {
         val decoded = PresetCodec.decode(
-            """{"schemaVersion":1,"futureField":true,"presets":[{"id":"x","name":"Minimal","extra":1}]}""",
+            """{"schemaVersion":1,"futureField":true,"presets":[{"id":"x","name":"Minimal","extra":1,"splitEnabled":false}]}""",
         )
         assertEquals(PerformancePreset(id = "x", name = "Minimal"), decoded.presets.single())
     }
