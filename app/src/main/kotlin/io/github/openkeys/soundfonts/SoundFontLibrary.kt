@@ -16,7 +16,15 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 @Serializable
-data class SoundFontEntry(val id: String, val name: String, val fileName: String)
+data class SoundFontEntry(
+    val id: String,
+    val name: String,
+    val fileName: String,
+    val instrumentNames: Map<String, String> = emptyMap(),
+) {
+    fun instrumentName(bank: Int, program: Int, original: String): String =
+        instrumentNames["$bank:$program"] ?: original
+}
 
 /** Imported SoundFonts, copied into app storage so they survive restarts without URI permissions. */
 class SoundFontLibrary(
@@ -48,6 +56,28 @@ class SoundFontLibrary(
 
     suspend fun add(entry: SoundFontEntry) = mutex.withLock {
         val next = entries.value.filterNot { it.id == entry.id } + entry
+        withContext(io) { write(next) }
+        _entries.value = next
+    }
+
+    suspend fun rename(id: String, name: String) = update(id) { entry ->
+        require(name.isNotBlank()) { "Name cannot be blank" }
+        entry.copy(name = name.trim())
+    }
+
+    suspend fun renameInstrument(id: String, bank: Int, program: Int, name: String?) = update(id) { entry ->
+        require(bank >= 0 && program in 0..127) { "Invalid bank or program" }
+        require(name == null || name.isNotBlank()) { "Name cannot be blank" }
+        val key = "$bank:$program"
+        val names = if (name == null) entry.instrumentNames - key else entry.instrumentNames + (key to name.trim())
+        entry.copy(instrumentNames = names)
+    }
+
+    private suspend fun update(id: String, transform: (SoundFontEntry) -> SoundFontEntry) = mutex.withLock {
+        val entry = entries.value.firstOrNull { it.id == id }
+            ?: throw IllegalArgumentException("SoundFont not found")
+        val updated = transform(entry)
+        val next = entries.value.map { if (it.id == id) updated else it }
         withContext(io) { write(next) }
         _entries.value = next
     }

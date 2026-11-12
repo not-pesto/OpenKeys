@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,6 +17,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,9 +36,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +49,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,10 +61,14 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +78,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -76,6 +89,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import io.github.openkeys.audio.Patch
 import io.github.openkeys.instruments.InstrumentCategory
 import io.github.openkeys.midi.MidiConnectionState
@@ -91,6 +106,7 @@ import io.github.openkeys.ui.artRes
 import io.github.openkeys.ui.theme.OkColors
 import io.github.openkeys.ui.theme.OpenKeysTheme
 import io.github.openkeys.ui.theme.okSwitchColors
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -141,8 +157,7 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
     val midi by app.midi.collectAsState()
     val driver by app.midiDriver.collectAsState()
     val echo by app.echoToKeyboard.collectAsState()
-    var showSettings by remember { mutableStateOf(false) }
-    var showLicenses by remember { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val pickSoundFont = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -161,7 +176,6 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
                 compact = compact,
                 midi = midi,
                 onSettings = { showSettings = true },
-                onPanic = perf::panic,
             )
 
             message?.let {
@@ -236,33 +250,36 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
                 }
             }
 
-            MidiSection(midi, lastEvent)
-
-            SoundFontSection(
-                soundFonts = soundFonts,
-                importing = importing,
-                onImport = { pickSoundFont.launch(arrayOf("*/*")) },
-                usersOf = perf::soundFontUsers,
-                onRemove = perf::removeSoundFont,
-            )
         }
     }
 
     if (showSettings) {
         SettingsDialog(
+            midi = midi,
+            lastEvent = lastEvent,
+            onPanic = perf::panic,
             driver = driver,
             onSelect = app::setMidiDriver,
             echo = echo,
             onEcho = app::setEchoToKeyboard,
-            onShowLicenses = { showSettings = false; showLicenses = true },
+            soundFonts = soundFonts,
+            patches = patches,
+            importing = importing,
+            onImport = { pickSoundFont.launch(arrayOf("*/*")) },
+            usersOf = perf::soundFontUsers,
+            onRemove = perf::removeSoundFont,
+            onRename = perf::renameSoundFont,
+            onRenameInstrument = perf::renameInstrument,
+            loadPatches = perf::loadSoundFontPatches,
+            message = message,
+            onDismissMessage = perf::dismissMessage,
             onDismiss = { showSettings = false },
         )
     }
-    if (showLicenses) LicensesDialog(onDismiss = { showLicenses = false })
 }
 
 @Composable
-private fun Header(wide: Boolean, compact: Boolean, midi: MidiInput, onSettings: () -> Unit, onPanic: () -> Unit) {
+private fun Header(wide: Boolean, compact: Boolean, midi: MidiInput, onSettings: () -> Unit) {
     val state by midi.state.collectAsState()
     val brand: @Composable () -> Unit = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -289,8 +306,11 @@ private fun Header(wide: Boolean, compact: Boolean, midi: MidiInput, onSettings:
     val controls: @Composable () -> Unit = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MidiStatusChip(state)
-            OutlinedButton(onClick = onSettings, shape = MaterialTheme.shapes.small) { Text("Settings") }
-            Button(onClick = onPanic, shape = MaterialTheme.shapes.small) { Text("All notes off") }
+            OutlinedButton(onClick = onSettings, shape = MaterialTheme.shapes.small) {
+                Icon(painterResource(R.drawable.ic_settings), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Settings")
+            }
         }
     }
     if (compact) {
@@ -411,25 +431,174 @@ private fun SplitBar(enabled: Boolean, splitNote: Int) {
 @Composable
 private fun SoundFontSection(
     soundFonts: List<SoundFontEntry>,
+    patches: Map<String, List<Patch>>,
     importing: Boolean,
     onImport: () -> Unit,
     usersOf: (String) -> List<String>,
     onRemove: (String) -> Unit,
+    onRename: (String, String) -> Unit,
+    onRenameInstrument: (String, Int, Int, String?) -> Unit,
+    loadPatches: suspend (String) -> Boolean,
+    onNavigate: () -> Unit,
 ) {
     var removing by remember { mutableStateOf<SoundFontEntry?>(null) }
-    OkCard {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionTitle("SoundFonts", Modifier.weight(1f))
-                Button(onClick = onImport, enabled = !importing, shape = MaterialTheme.shapes.small) {
-                    Text(if (importing) "Importing…" else "Import SoundFont")
+    var editingName by remember { mutableStateOf<SoundFontEntry?>(null) }
+    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var editingPatch by remember { mutableStateOf<Patch?>(null) }
+    var loadResult by remember(selectedId) { mutableStateOf<Boolean?>(null) }
+    var loadAttempt by remember(selectedId) { mutableStateOf(0) }
+    var search by rememberSaveable(selectedId) { mutableStateOf("") }
+    val selected = soundFonts.firstOrNull { it.id == selectedId }
+    BackHandler(enabled = selected != null) {
+        selectedId = null
+        onNavigate()
+    }
+    LaunchedEffect(selectedId, loadAttempt) {
+        val id = selectedId
+        if (id != null) {
+            loadResult = null
+            loadResult = loadPatches(id)
+        }
+    }
+    if (selected == null) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val compact = maxWidth < 360.dp
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Your SoundFont library",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = onImport,
+                        enabled = !importing,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = if (compact) Modifier.semantics {
+                            contentDescription = if (importing) "Importing SoundFont" else "Import SoundFont"
+                        } else Modifier,
+                    ) {
+                        Text(if (importing) "Importing…" else if (compact) "Import" else "Import SoundFont")
+                    }
                 }
             }
-            if (soundFonts.isEmpty()) Text("Import an SF2 or SF3 file to start playing.", color = OkColors.TextSecondary)
+            Text(
+                "Choose a SoundFont to manage its name and instruments.",
+                color = OkColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (soundFonts.isEmpty()) {
+                OkCard(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "No SoundFonts yet. Import an SF2 or SF3 file to start playing.",
+                        modifier = Modifier.padding(16.dp),
+                        color = OkColors.TextSecondary,
+                    )
+                }
+            }
             soundFonts.forEach { sf ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(sf.name, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    TextButton(onClick = { removing = sf }) { Text("Remove") }
+                OkCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable(role = Role.Button) {
+                            selectedId = sf.id
+                            onNavigate()
+                        }.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(sf.name, style = MaterialTheme.typography.titleMedium)
+                            Text("Manage SoundFont", style = MaterialTheme.typography.bodySmall, color = OkColors.TextSecondary)
+                        }
+                        Text("›", style = MaterialTheme.typography.headlineSmall, color = OkColors.Cyan)
+                    }
+                }
+            }
+        }
+    } else {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = { selectedId = null; onNavigate() }) {
+                Icon(painterResource(R.drawable.ic_back), contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Back to SoundFonts")
+            }
+            OkCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        SectionTitle("SoundFont", Modifier.weight(1f))
+                        IconButton(onClick = { editingName = selected }) {
+                            Icon(painterResource(R.drawable.ic_edit), contentDescription = "Rename SoundFont")
+                        }
+                        IconButton(onClick = { removing = selected }) {
+                            Icon(
+                                painterResource(R.drawable.ic_delete),
+                                contentDescription = "Remove SoundFont",
+                                tint = OkColors.Error,
+                            )
+                        }
+                    }
+                    Text(selected.name, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Names are local to OpenKeys; the original file is not changed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OkColors.TextSecondary,
+                    )
+                }
+            }
+            Text("Instruments", style = MaterialTheme.typography.titleMedium)
+            Text("Select an instrument to edit its display name.", style = MaterialTheme.typography.bodySmall, color = OkColors.TextSecondary)
+            when (loadResult) {
+                null -> Text("Loading instruments…", color = OkColors.TextSecondary)
+                false -> {
+                    Text("Could not load instruments from this SoundFont.", color = OkColors.Error)
+                    TextButton(onClick = { loadAttempt++ }) { Text("Retry") }
+                }
+                true -> {
+                    val instruments = patches[selected.id].orEmpty()
+                    if (instruments.isEmpty()) {
+                        Text("No instruments found.", color = OkColors.TextSecondary)
+                    } else {
+                        OutlinedTextField(
+                            value = search,
+                            onValueChange = { search = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Search instruments") },
+                            singleLine = true,
+                        )
+                        val query = search.trim()
+                        val matches = instruments.filter { patch ->
+                            selected.instrumentName(patch.bank, patch.program, patch.name).contains(query, ignoreCase = true) ||
+                                patch.name.contains(query, ignoreCase = true) ||
+                                "${patch.bank}:${patch.program}".contains(query)
+                        }
+                        if (matches.isEmpty()) Text("No matching instruments.", color = OkColors.TextSecondary)
+                        matches.forEach { patch ->
+                            val name = selected.instrumentName(patch.bank, patch.program, patch.name)
+                            OkCard(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    Modifier.fillMaxWidth().clickable(role = Role.Button) { editingPatch = patch }.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(name, style = MaterialTheme.typography.titleSmall)
+                                        Text(
+                                            "Bank ${patch.bank} · Program ${patch.program}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = OkColors.TextSecondary,
+                                        )
+                                        if (name != patch.name) {
+                                            Text(
+                                                "Original: ${patch.name}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = OkColors.TextMuted,
+                                            )
+                                        }
+                                    }
+                                    Text("Edit", style = MaterialTheme.typography.labelLarge, color = OkColors.Cyan)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -442,76 +611,137 @@ private fun SoundFontSection(
             text = {
                 Text(
                     if (users.isEmpty()) "The file will be deleted from the app."
-                    else "Used by: ${users.joinToString()}. Those voices will show \"Missing SoundFont\" until you pick another.",
+                    else "The file will be deleted from the app. Used by: ${users.joinToString()}. " +
+                        "Those voices will show \"Missing SoundFont\" until you pick another.",
                 )
             },
-            confirmButton = { TextButton(onClick = { removing = null; onRemove(sf.id) }) { Text("Remove") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (selectedId == sf.id) {
+                        selectedId = null
+                        onNavigate()
+                    }
+                    removing = null
+                    onRemove(sf.id)
+                }) { Text("Remove") }
+            },
             dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } },
         )
+    }
+    editingName?.let { sf ->
+        RenameDialog(
+            title = "Rename SoundFont",
+            initialName = sf.name,
+            onDismiss = { editingName = null },
+            onSave = { name -> onRename(sf.id, name); editingName = null },
+        )
+    }
+    editingPatch?.let { patch ->
+        if (selected != null) {
+            RenameDialog(
+                title = "Rename instrument",
+                initialName = selected.instrumentName(patch.bank, patch.program, patch.name),
+                onDismiss = { editingPatch = null },
+                onSave = { name ->
+                    onRenameInstrument(selected.id, patch.bank, patch.program, name)
+                    editingPatch = null
+                },
+                onReset = {
+                    onRenameInstrument(selected.id, patch.bank, patch.program, null)
+                    editingPatch = null
+                },
+            )
+        }
     }
 }
 
 @Composable
-private fun LicensesDialog(onDismiss: () -> Unit) {
-    val assets = androidx.compose.ui.platform.LocalContext.current.assets
-    val files = remember { assets.list("licenses")?.sorted().orEmpty() }
-    var selected by remember { mutableStateOf(files.firstOrNull { it.startsWith("THIRD_PARTY") } ?: files.firstOrNull()) }
-    val text = remember(selected) {
-        selected?.let { name -> assets.open("licenses/$name").bufferedReader().use { it.readText() } }.orEmpty()
-    }
+private fun RenameDialog(
+    title: String,
+    initialName: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+    onReset: (() -> Unit)? = null,
+) {
+    var name by rememberSaveable { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("About & licences") },
+        title = { Text(title) },
         text = {
-            Column {
-                Text(TAGLINE, color = OkColors.Cyan, style = MaterialTheme.typography.bodyMedium)
-                Text("OpenKeys ${BuildConfig.VERSION_NAME}. Apache-2.0. Uses FluidSynth (LGPL-2.1) and Kshoji USB-MIDI-Driver (Apache-2.0).")
-                Row(Modifier.horizontalScroll(rememberScrollState())) {
-                    files.forEach { f ->
-                        TextButton(onClick = { selected = f }) {
-                            Text(f.substringBeforeLast('.'), style = if (f == selected) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    "This name appears in OpenKeys. The original SoundFont file stays unchanged.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OkColors.TextSecondary,
                 )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Display name") },
+                    singleLine = true,
+                    isError = name.isBlank(),
+                    supportingText = if (name.isBlank()) ({ Text("Enter a name") }) else null,
+                )
+                if (onReset != null) TextButton(onClick = onReset) { Text("Restore original name") }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        confirmButton = { TextButton(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank()) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
 @Composable
-private fun MidiSection(midi: MidiInput, lastEvent: MidiEvent?) {
-    val state by midi.state.collectAsState()
-    val devices by midi.devices.collectAsState()
-    OkCard {
+private fun AboutSection() {
+    val assets = androidx.compose.ui.platform.LocalContext.current.assets
+    val files = remember { assets.list("licenses")?.sorted().orEmpty() }
+    var selected by rememberSaveable { mutableStateOf(files.firstOrNull { it.startsWith("THIRD_PARTY") } ?: files.firstOrNull()) }
+    val text = remember(selected) {
+        selected?.let { name -> assets.open("licenses/$name").bufferedReader().use { it.readText() } }.orEmpty()
+    }
+    OkCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle("MIDI input")
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = when (val s = state) {
-                        MidiConnectionState.Disconnected ->
-                            if (midi.supportsDeviceSelection) "No MIDI device connected" else "Waiting for USB MIDI device…"
-                        is MidiConnectionState.Connecting -> "Connecting to ${s.deviceName}…"
-                        is MidiConnectionState.Connected -> "Connected: ${s.deviceName}"
-                        is MidiConnectionState.Error -> s.message
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (state is MidiConnectionState.Error) OkColors.Error else OkColors.TextPrimary,
-                    modifier = Modifier.weight(1f),
-                )
-                if (state is MidiConnectionState.Connected) {
-                    OutlinedButton(onClick = midi::disconnect, shape = MaterialTheme.shapes.small) { Text("Disconnect") }
-                } else if (!midi.supportsDeviceSelection) {
-                    OutlinedButton(onClick = { midi.connect(0) }, shape = MaterialTheme.shapes.small) { Text("Scan") }
+            Text(TAGLINE, color = OkColors.Cyan, style = MaterialTheme.typography.bodyMedium)
+            Text("OpenKeys ${BuildConfig.VERSION_NAME}. Apache-2.0. Uses FluidSynth (LGPL-2.1) and Kshoji USB-MIDI-Driver (Apache-2.0).")
+            SectionTitle("Licences")
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                files.forEach { f ->
+                    TextButton(onClick = { selected = f }) {
+                        Text(f.substringBeforeLast('.'), style = if (f == selected) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
+            Text(text, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun MidiSection(midi: MidiInput, lastEvent: MidiEvent?, onPanic: () -> Unit) {
+    val state by midi.state.collectAsState()
+    val devices by midi.devices.collectAsState()
+    OkCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle("MIDI input")
+            Button(onClick = onPanic, shape = MaterialTheme.shapes.small) { Text("All notes off") }
+            Text(
+                text = when (val s = state) {
+                    MidiConnectionState.Disconnected ->
+                        if (midi.supportsDeviceSelection) "No MIDI device connected" else "Waiting for USB MIDI device…"
+                    is MidiConnectionState.Connecting -> "Connecting to ${s.deviceName}…"
+                    is MidiConnectionState.Connected -> "Connected: ${s.deviceName}"
+                    is MidiConnectionState.Error -> s.message
+                },
+                style = MaterialTheme.typography.titleMedium,
+                color = if (state is MidiConnectionState.Error) OkColors.Error else OkColors.TextPrimary,
+            )
+            if (state is MidiConnectionState.Connected) {
+                OutlinedButton(onClick = midi::disconnect, shape = MaterialTheme.shapes.small) { Text("Disconnect") }
+            } else if (!midi.supportsDeviceSelection) {
+                OutlinedButton(onClick = { midi.connect(0) }, shape = MaterialTheme.shapes.small) { Text("Scan") }
+            }
             if (midi.supportsDeviceSelection && state !is MidiConnectionState.Connected) {
-                if (devices.isEmpty()) Text("No MIDI input devices found. Try the USB MIDI Driver in Settings.", color = OkColors.TextSecondary)
+                if (devices.isEmpty()) Text("No MIDI input devices found. Try the USB MIDI Driver above.", color = OkColors.TextSecondary)
                 devices.forEach { d -> TextButton(onClick = { midi.connect(d.id) }) { Text(d.name) } }
             }
             Text(
@@ -594,7 +824,8 @@ private fun SlotCard(
     onSelectSoundFont: (String) -> Unit,
 ) {
     val patch = patches.firstOrNull { it.bank == slot.bank && it.program == slot.program }
-    val sfName = slot.soundFontId?.let { id -> soundFonts.firstOrNull { it.id == id }?.name ?: "Missing SoundFont" } ?: "No SoundFont"
+    val soundFont = soundFonts.firstOrNull { it.id == slot.soundFontId }
+    val sfName = slot.soundFontId?.let { soundFont?.name ?: "Missing SoundFont" } ?: "No SoundFont"
     val art = remember(slot.soundFontId, slot.bank, slot.program, patch?.name) {
         slot.soundFontId?.let { InstrumentCategory.of(slot.bank, slot.program, patch?.name)?.artRes() }
     }
@@ -639,7 +870,8 @@ private fun SlotCard(
                     }
                     Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(if (art != null) 0.6f else 1f)) {
                         Text(
-                            patch?.name ?: if (slot.soundFontId == null) "No instrument" else "Program ${slot.program}",
+                            patch?.let { soundFont?.instrumentName(it.bank, it.program, it.name) ?: it.name }
+                                ?: if (slot.soundFontId == null) "No instrument" else "Program ${slot.program}",
                             style = MaterialTheme.typography.titleLarge,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -661,8 +893,8 @@ private fun SlotCard(
             )
             Picker(
                 label = "Instrument",
-                selected = patch?.let(::patchLabel) ?: "${slot.bank}:${slot.program}",
-                options = patches.map { "${it.bank}:${it.program}" to patchLabel(it) },
+                selected = patch?.let { patchLabel(it, soundFont) } ?: "${slot.bank}:${slot.program}",
+                options = patches.map { "${it.bank}:${it.program}" to patchLabel(it, soundFont) },
                 onSelect = { key ->
                     val (bank, program) = key.split(":").map(String::toInt)
                     onChange { it.copy(bank = bank, program = program) }
@@ -766,50 +998,147 @@ private fun LabeledSlider(label: String, value: Float, onChange: (Float) -> Unit
 
 @Composable
 private fun SettingsDialog(
+    midi: MidiInput,
+    lastEvent: MidiEvent?,
+    onPanic: () -> Unit,
     driver: MidiDriverType,
     onSelect: (MidiDriverType) -> Unit,
     echo: Boolean,
     onEcho: (Boolean) -> Unit,
-    onShowLicenses: () -> Unit,
+    soundFonts: List<SoundFontEntry>,
+    patches: Map<String, List<Patch>>,
+    importing: Boolean,
+    onImport: () -> Unit,
+    usersOf: (String) -> List<String>,
+    onRemove: (String) -> Unit,
+    onRename: (String, String) -> Unit,
+    onRenameInstrument: (String, Int, Int, String?) -> Unit,
+    loadPatches: suspend (String) -> Boolean,
+    message: String?,
+    onDismissMessage: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("MIDI input driver") },
-        text = {
-            Column {
-                DriverOption(
-                    selected = driver == MidiDriverType.ANDROID_MIDI,
-                    title = "Android MIDI",
-                    detail = "Standard class-compliant USB MIDI devices.",
-                    onClick = { onSelect(MidiDriverType.ANDROID_MIDI) },
-                )
-                DriverOption(
-                    selected = driver == MidiDriverType.USB_MIDI_DRIVER,
-                    title = "USB MIDI Driver (Kshoji)",
-                    detail = "Direct USB access. Use for keyboards Android does not list, e.g. Yamaha PSR series.",
-                    onClick = { onSelect(MidiDriverType.USB_MIDI_DRIVER) },
-                )
-                HorizontalDivider(color = OkColors.Border, modifier = Modifier.padding(vertical = 8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Echo routed notes to keyboard", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Sends split/octave-routed notes, pedals, program and volume back to the keyboard " +
-                                "(Left 1 → ch 3, Right 1 → ch 1, Right 2 → ch 2). Set Local Control off on the " +
-                                "keyboard to avoid doubled notes.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = OkColors.TextSecondary,
-                        )
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    val tabs = listOf("Input", "Output", "Sound", "About")
+    val scope = rememberCoroutineScope()
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            modifier = Modifier.widthIn(max = 850.dp).fillMaxWidth(0.96f).fillMaxHeight(0.9f),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = OkColors.Background,
+            border = BorderStroke(1.dp, OkColors.Border),
+        ) {
+            BoxWithConstraints {
+                val compact = maxWidth < 500.dp
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Settings", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onDismiss) { Text("Done") }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Switch(checked = echo, onCheckedChange = onEcho, colors = okSwitchColors())
+                    HorizontalDivider(color = OkColors.Border)
+                    Row(Modifier.weight(1f)) {
+                        Column(
+                            Modifier.width(if (compact) 100.dp else 160.dp).fillMaxHeight()
+                                .background(OkColors.Card)
+                                .verticalScroll(rememberScrollState())
+                                .selectableGroup()
+                                .padding(horizontal = 8.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            tabs.forEachIndexed { index, title ->
+                                val selected = selectedTab == index
+                                Box(
+                                    Modifier.fillMaxWidth()
+                                        .clip(MaterialTheme.shapes.small)
+                                        .background(if (selected) OkColors.Primary.copy(alpha = 0.18f) else Color.Transparent)
+                                        .selectable(selected = selected, role = Role.Tab, onClick = { selectedTab = index })
+                                        .padding(horizontal = 10.dp, vertical = 14.dp),
+                                ) {
+                                    Text(
+                                        title,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = if (selected) OkColors.Cyan else OkColors.TextSecondary,
+                                    )
+                                }
+                            }
+                        }
+                        key(selectedTab) {
+                            val contentScroll = rememberScrollState()
+                            Column(
+                                Modifier.weight(1f).fillMaxHeight().verticalScroll(contentScroll)
+                                    .padding(if (compact) 12.dp else 20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(tabs[selectedTab], style = MaterialTheme.typography.titleLarge)
+                                message?.let {
+                                    OkCard(borderColor = OkColors.Error) {
+                                        Column(Modifier.padding(12.dp)) {
+                                            Text(it, color = OkColors.Error)
+                                            TextButton(onClick = onDismissMessage) { Text("Dismiss") }
+                                        }
+                                    }
+                                }
+                                when (selectedTab) {
+                                    0 -> {
+                                        OkCard(modifier = Modifier.fillMaxWidth()) {
+                                            Column(Modifier.padding(14.dp)) {
+                                                SectionTitle("MIDI input driver")
+                                                DriverOption(
+                                                    selected = driver == MidiDriverType.ANDROID_MIDI,
+                                                    title = "Android MIDI",
+                                                    detail = "Standard class-compliant USB MIDI devices.",
+                                                    onClick = { onSelect(MidiDriverType.ANDROID_MIDI) },
+                                                )
+                                                DriverOption(
+                                                    selected = driver == MidiDriverType.USB_MIDI_DRIVER,
+                                                    title = "USB MIDI Driver (Kshoji)",
+                                                    detail = "Direct USB access. Use for keyboards Android does not list, e.g. Yamaha PSR series.",
+                                                    onClick = { onSelect(MidiDriverType.USB_MIDI_DRIVER) },
+                                                )
+                                            }
+                                        }
+                                        MidiSection(midi, lastEvent, onPanic)
+                                    }
+                                    1 -> OkCard {
+                                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text("Echo routed notes to keyboard", style = MaterialTheme.typography.titleSmall)
+                                                Text(
+                                                    "Sends split/octave-routed notes, pedals, program and volume back to the keyboard " +
+                                                        "(Left 1 → ch 3, Right 1 → ch 1, Right 2 → ch 2). Set Local Control off on the " +
+                                                        "keyboard to avoid doubled notes.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = OkColors.TextSecondary,
+                                                )
+                                            }
+                                            Spacer(Modifier.width(12.dp))
+                                            Switch(checked = echo, onCheckedChange = onEcho, colors = okSwitchColors())
+                                        }
+                                    }
+                                    2 -> SoundFontSection(
+                                        soundFonts = soundFonts,
+                                        patches = patches,
+                                        importing = importing,
+                                        onImport = onImport,
+                                        usersOf = usersOf,
+                                        onRemove = onRemove,
+                                        onRename = onRename,
+                                        onRenameInstrument = onRenameInstrument,
+                                        loadPatches = loadPatches,
+                                        onNavigate = { scope.launch { contentScroll.scrollTo(0) } },
+                                    )
+                                    3 -> AboutSection()
+                                }
+                            }
+                        }
+                    }
                 }
-                TextButton(onClick = onShowLicenses) { Text("About & licences") }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-    )
+        }
+    }
 }
 
 @Composable
@@ -832,7 +1161,8 @@ private fun VoiceSlotId.label() = when (this) {
     VoiceSlotId.LEFT_1 -> "Left 1"
 }
 
-private fun patchLabel(p: Patch) = "%03d:%03d %s".format(p.bank, p.program, p.name)
+private fun patchLabel(p: Patch, soundFont: SoundFontEntry?) =
+    "%03d:%03d %s".format(p.bank, p.program, soundFont?.instrumentName(p.bank, p.program, p.name) ?: p.name)
 
 private fun describe(event: MidiEvent): String = when (event) {
     is MidiEvent.NoteOn -> "Note on ${MidiNote.name(event.note)} vel ${event.velocity} ch ${event.channel + 1}"

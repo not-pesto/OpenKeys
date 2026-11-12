@@ -135,6 +135,30 @@ class PerformanceController(
 
     // ---- SoundFonts ------------------------------------------------------------------------
 
+    suspend fun loadSoundFontPatches(id: String): Boolean = withContext(engineThread) {
+        ensureLoaded(id) != null
+    }
+
+    fun renameSoundFont(id: String, name: String) = editSoundFont {
+        soundFonts.rename(id, name)
+    }
+
+    fun renameInstrument(id: String, bank: Int, program: Int, name: String?) = editSoundFont {
+        soundFonts.renameInstrument(id, bank, program, name)
+    }
+
+    private fun editSoundFont(block: suspend () -> Unit) {
+        scope.launch {
+            try {
+                block()
+            } catch (e: IOException) {
+                _message.value = "Could not save SoundFont names: ${e.message}"
+            } catch (e: IllegalArgumentException) {
+                _message.value = "Could not save SoundFont names: ${e.message}"
+            }
+        }
+    }
+
     /** Copies a SoundFont into app storage, verifies it loads, and assigns it to empty slots. */
     fun importSoundFont(name: String, open: () -> InputStream?) {
         val engine = synth ?: return
