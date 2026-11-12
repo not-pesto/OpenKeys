@@ -212,9 +212,9 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
                             inactive = id == VoiceSlotId.LEFT_1 && !preset.splitEnabled,
                             compact = compact,
                             soundFonts = soundFonts,
-                            patches = preset.slot(id).soundFontId?.let { patches[it] }.orEmpty(),
+                            patches = patches,
                             onChange = { transform -> perf.updateSlot(id, transform) },
-                            onSelectSoundFont = { sf -> perf.selectSoundFont(id, sf) },
+                            onSelectInstrument = { sf, patch -> perf.selectInstrument(id, sf, patch) },
                         )
                     }
                 }
@@ -819,13 +819,15 @@ private fun SlotCard(
     inactive: Boolean,
     compact: Boolean,
     soundFonts: List<SoundFontEntry>,
-    patches: List<Patch>,
+    patches: Map<String, List<Patch>>,
     onChange: ((VoiceSlot) -> VoiceSlot) -> Unit,
-    onSelectSoundFont: (String) -> Unit,
+    onSelectInstrument: (String, Patch) -> Unit,
 ) {
-    val patch = patches.firstOrNull { it.bank == slot.bank && it.program == slot.program }
+    val patch = slot.soundFontId?.let { patches[it] }.orEmpty().firstOrNull { it.bank == slot.bank && it.program == slot.program }
     val soundFont = soundFonts.firstOrNull { it.id == slot.soundFontId }
     val sfName = slot.soundFontId?.let { soundFont?.name ?: "Missing SoundFont" } ?: "No SoundFont"
+    val instrumentName = patch?.let { soundFont?.instrumentName(it.bank, it.program, it.name) ?: it.name }
+        ?: if (slot.soundFontId == null) "No instrument" else "Program ${slot.program}"
     val art = remember(slot.soundFontId, slot.bank, slot.program, patch?.name) {
         slot.soundFontId?.let { InstrumentCategory.of(slot.bank, slot.program, patch?.name)?.artRes() }
     }
@@ -870,8 +872,7 @@ private fun SlotCard(
                     }
                     Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(if (art != null) 0.6f else 1f)) {
                         Text(
-                            patch?.let { soundFont?.instrumentName(it.bank, it.program, it.name) ?: it.name }
-                                ?: if (slot.soundFontId == null) "No instrument" else "Program ${slot.program}",
+                            instrumentName,
                             style = MaterialTheme.typography.titleLarge,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -885,20 +886,14 @@ private fun SlotCard(
                 }
             }
             Picker(
-                label = "SoundFont",
-                selected = sfName,
-                options = soundFonts.map { it.id to it.name },
-                onSelect = onSelectSoundFont,
-                fill = true,
-            )
-            Picker(
                 label = "Instrument",
-                selected = patch?.let { patchLabel(it, soundFont) } ?: "${slot.bank}:${slot.program}",
-                options = patches.map { "${it.bank}:${it.program}" to patchLabel(it, soundFont) },
-                onSelect = { key ->
-                    val (bank, program) = key.split(":").map(String::toInt)
-                    onChange { it.copy(bank = bank, program = program) }
+                selected = if (slot.soundFontId == null) instrumentName else "$sfName | $instrumentName",
+                options = soundFonts.flatMap { sf ->
+                    patches[sf.id].orEmpty().map { p ->
+                        (sf.id to p) to "${sf.name} | ${sf.instrumentName(p.bank, p.program, p.name)}"
+                    }
                 },
+                onSelect = { (id, selectedPatch) -> onSelectInstrument(id, selectedPatch) },
                 fill = true,
             )
             HorizontalDivider(color = OkColors.Border)
@@ -951,11 +946,11 @@ private fun InstrumentImage(@DrawableRes res: Int, modifier: Modifier) {
 }
 
 @Composable
-private fun Picker(
+private fun <T> Picker(
     label: String,
     selected: String,
-    options: List<Pair<String, String>>,
-    onSelect: (String) -> Unit,
+    options: List<Pair<T, String>>,
+    onSelect: (T) -> Unit,
     fill: Boolean = false,
 ) {
     var open by remember { mutableStateOf(false) }
@@ -1160,9 +1155,6 @@ private fun VoiceSlotId.label() = when (this) {
     VoiceSlotId.RIGHT_2 -> "Right 2"
     VoiceSlotId.LEFT_1 -> "Left 1"
 }
-
-private fun patchLabel(p: Patch, soundFont: SoundFontEntry?) =
-    "%03d:%03d %s".format(p.bank, p.program, soundFont?.instrumentName(p.bank, p.program, p.name) ?: p.name)
 
 private fun describe(event: MidiEvent): String = when (event) {
     is MidiEvent.NoteOn -> "Note on ${MidiNote.name(event.note)} vel ${event.velocity} ch ${event.channel + 1}"

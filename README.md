@@ -6,7 +6,7 @@
 
 Android app for live performance: play SoundFont voices from a USB MIDI keyboard through three voice slots (Right 1, Right 2, Left 1), with an optional per-preset keyboard split, presets and master reverb/chorus.
 
-Use **Settings** to manage the MIDI connection and choose the input driver under **Input**, configure keyboard echo under **Output**, and import or remove SF2/SF3 SoundFonts under **Sound**. Imported SoundFonts can be selected independently in each voice slot. Application and licence information is available under **About**.
+Use **Settings** to manage the MIDI connection and choose the input driver under **Input**, configure keyboard echo under **Output**, and import or remove SF2/SF3 SoundFonts under **Sound**. Each voice slot's instrument dropdown lists imported sounds as **SoundFont name | Instrument name**. Application and licence information is available under **About**.
 
 In **Sound**, select a SoundFont to rename or remove it and browse or search its instruments. Select an instrument to rename it. Names are saved locally for all presets; the SoundFont file and its original names are unchanged. Instrument names can be restored to their originals.
 

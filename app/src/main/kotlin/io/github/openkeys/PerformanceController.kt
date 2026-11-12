@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Owns the live performance state: the working preset, MIDI → router → synth dispatch,
@@ -63,6 +64,7 @@ class PerformanceController(
     // Confined to engineThread.
     private val engineIds = HashMap<String, Int>()
     private var applied: PerformancePreset? = null
+    private val removingSoundFonts = ConcurrentHashMap.newKeySet<String>()
 
     @Volatile private var echo: MidiEcho? = null
 
@@ -78,6 +80,17 @@ class PerformanceController(
             }
             presets.presets.value.firstOrNull()?.let { _current.value = it }
             commit(_current.value)
+            if (synth != null) {
+                withContext(engineThread) {
+                    val failed = soundFonts.entries.value.filter {
+                        ensureLoaded(it.id) == null && it.id !in removingSoundFonts && soundFonts.file(it.id) != null
+                    }
+                    if (failed.isNotEmpty()) {
+                        val error = "Could not load instruments from: ${failed.joinToString { it.name }}"
+                        _message.update { previous -> listOfNotNull(previous, error).joinToString("\n") }
+                    }
+                }
+            }
         }
     }
 
@@ -92,13 +105,8 @@ class PerformanceController(
     fun updateSlot(id: VoiceSlotId, transform: (VoiceSlot) -> VoiceSlot) =
         update { it.withSlot(id, transform(it.slot(id))) }
 
-    fun selectSoundFont(slot: VoiceSlotId, soundFontId: String) {
-        scope.launch(engineThread) {
-            ensureLoaded(soundFontId)
-            val first = _patches.value[soundFontId]?.firstOrNull()
-            updateSlot(slot) { it.copy(soundFontId = soundFontId, bank = first?.bank ?: 0, program = first?.program ?: 0) }
-        }
-    }
+    fun selectInstrument(slot: VoiceSlotId, soundFontId: String, patch: Patch) =
+        updateSlot(slot) { it.copy(soundFontId = soundFontId, bank = patch.bank, program = patch.program) }
 
     fun dismissMessage() {
         _message.value = null
@@ -210,17 +218,22 @@ class PerformanceController(
 
     /** Referencing slots stay as-is and show "Missing SoundFont" until reassigned. */
     fun removeSoundFont(soundFontId: String) {
+        if (!removingSoundFonts.add(soundFontId)) return
         scope.launch {
-            panic()
-            withContext(engineThread) {
-                engineIds.remove(soundFontId)?.let { synth?.unloadSoundFont(it) }
-                _patches.update { it - soundFontId }
-                applied = null
-            }
             try {
-                soundFonts.remove(soundFontId)
-            } catch (e: IOException) {
-                _message.value = "Could not remove SoundFont: ${e.message}"
+                panic()
+                withContext(engineThread) {
+                    engineIds.remove(soundFontId)?.let { synth?.unloadSoundFont(it) }
+                    _patches.update { it - soundFontId }
+                    applied = null
+                }
+                try {
+                    soundFonts.remove(soundFontId)
+                } catch (e: IOException) {
+                    _message.value = "Could not remove SoundFont: ${e.message}"
+                }
+            } finally {
+                removingSoundFonts.remove(soundFontId)
             }
             commit(_current.value)
         }
@@ -315,6 +328,7 @@ class PerformanceController(
     }
 
     private fun ensureLoaded(soundFontId: String): Int? {
+        if (soundFontId in removingSoundFonts) return null
         engineIds[soundFontId]?.let { return it }
         val engine = synth ?: return null
         val file = soundFonts.file(soundFontId) ?: return null
