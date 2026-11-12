@@ -15,9 +15,11 @@ data class RoutingConfig(
     val right1: SlotRouting = SlotRouting(enabled = true),
     val right2: SlotRouting = SlotRouting(),
     val left1: SlotRouting = SlotRouting(),
+    val globalTranspose: Int = 0,
 ) {
     init {
         require(splitNote in MidiNote.MIN..MidiNote.MAX) { "Split note out of range: $splitNote" }
+        require(globalTranspose in -12..12) { "Global transpose out of range: $globalTranspose" }
     }
 
     fun slot(id: VoiceSlotId): SlotRouting = when (id) {

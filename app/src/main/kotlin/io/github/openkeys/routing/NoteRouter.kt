@@ -68,7 +68,7 @@ class NoteRouter(config: RoutingConfig = RoutingConfig()) {
         }
         return slots.mapNotNull { id ->
             val slot = c.slot(id)
-            val out = note + slot.transposeSemitones
+            val out = note + c.globalTranspose + slot.transposeSemitones
             if (slot.enabled && out in MidiNote.MIN..MidiNote.MAX) SlotNote(id, out) else null
         }
     }

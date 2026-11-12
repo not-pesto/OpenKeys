@@ -33,6 +33,9 @@ class OpenKeysApp : Application() {
     private val _echoToKeyboard = MutableStateFlow(false)
     val echoToKeyboard: StateFlow<Boolean> = _echoToKeyboard.asStateFlow()
 
+    private val _globalTranspose = MutableStateFlow(0)
+    val globalTranspose: StateFlow<Int> = _globalTranspose.asStateFlow()
+
     override fun onCreate() {
         super.onCreate()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -43,6 +46,9 @@ class OpenKeysApp : Application() {
             soundFonts = SoundFontLibrary(File(filesDir, "soundfonts")),
             scope = scope,
         )
+        val transpose = prefs.getInt(KEY_GLOBAL_TRANSPOSE, 0).coerceIn(-12, 12)
+        _globalTranspose.value = transpose
+        performance.setGlobalTranspose(transpose)
         performance.start()
 
         val driver = prefs.getString(KEY_MIDI_DRIVER, null)
@@ -57,6 +63,13 @@ class OpenKeysApp : Application() {
         prefs.edit().putBoolean(KEY_ECHO, on).apply()
         _echoToKeyboard.value = on
         performance.setEcho(if (on) { s, d1, d2 -> _midi.value.send(s, d1, d2) } else null)
+    }
+
+    fun setGlobalTranspose(semitones: Int) {
+        require(semitones in -12..12)
+        performance.setGlobalTranspose(semitones)
+        _globalTranspose.value = semitones
+        prefs.edit().putInt(KEY_GLOBAL_TRANSPOSE, semitones).apply()
     }
 
     fun setMidiDriver(type: MidiDriverType) {
@@ -78,5 +91,6 @@ class OpenKeysApp : Application() {
     private companion object {
         const val KEY_MIDI_DRIVER = "midi_driver"
         const val KEY_ECHO = "echo_to_keyboard"
+        const val KEY_GLOBAL_TRANSPOSE = "global_transpose"
     }
 }

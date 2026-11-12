@@ -105,6 +105,11 @@ class PerformanceController(
     fun updateSlot(id: VoiceSlotId, transform: (VoiceSlot) -> VoiceSlot) =
         update { it.withSlot(id, transform(it.slot(id))) }
 
+    fun setGlobalTranspose(semitones: Int) {
+        require(semitones in -12..12)
+        synchronized(router) { router.config = router.config.copy(globalTranspose = semitones) }
+    }
+
     fun selectInstrument(slot: VoiceSlotId, soundFontId: String, patch: Patch) =
         updateSlot(slot) { it.copy(soundFontId = soundFontId, bank = patch.bank, program = patch.program) }
 
@@ -304,7 +309,9 @@ class PerformanceController(
     // ---- Engine ----------------------------------------------------------------------------
 
     private fun commit(preset: PerformancePreset) {
-        synchronized(router) { router.config = preset.toRoutingConfig() }
+        synchronized(router) {
+            router.config = preset.toRoutingConfig().copy(globalTranspose = router.config.globalTranspose)
+        }
         pendingApply.value = preset
         echo?.setup(preset)
     }

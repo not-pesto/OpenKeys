@@ -3,11 +3,13 @@ package io.github.openkeys
 import io.github.openkeys.audio.Patch
 import io.github.openkeys.audio.SynthEngine
 import io.github.openkeys.midi.MidiEvent
+import io.github.openkeys.presets.PerformancePreset
 import io.github.openkeys.presets.PresetRepository
 import io.github.openkeys.routing.VoiceSlotId
 import io.github.openkeys.soundfonts.SoundFontLibrary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -66,6 +68,30 @@ class PerformanceControllerSustainTest {
             ),
             synth.events,
         )
+    }
+
+    @Test
+    fun globalTransposeSurvivesPresetRecallAndReachesSynthAndEcho() = runBlocking {
+        val synth = RecordingSynth()
+        val repository = PresetRepository(temporaryFolder.root.resolve("presets.json"))
+        repository.save(PerformancePreset(id = "saved", name = "Saved"))
+        val controller = PerformanceController(
+            synth, repository, SoundFontLibrary(temporaryFolder.root.resolve("soundfonts")),
+            CoroutineScope(Dispatchers.Default),
+        )
+        val echo = mutableListOf<Triple<Int, Int, Int>>()
+        controller.setEcho { status, data1, data2 -> echo += Triple(status, data1, data2) }
+        controller.setGlobalTranspose(2)
+        controller.recall("saved")
+        synth.events.clear()
+        echo.clear()
+
+        controller.onMidiEvent(MidiEvent.NoteOn(0, 60, 100))
+        controller.setGlobalTranspose(-2)
+        controller.onMidiEvent(MidiEvent.NoteOff(0, 60, 0))
+
+        assertEquals(listOf("on RIGHT_1 62 100", "off RIGHT_1 62"), synth.events)
+        assertEquals(listOf(Triple(0x90, 62, 100), Triple(0x80, 62, 0)), echo)
     }
 
     private fun controller(synth: SynthEngine) = PerformanceController(

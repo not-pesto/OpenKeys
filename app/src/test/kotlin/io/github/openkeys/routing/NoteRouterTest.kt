@@ -72,6 +72,28 @@ class NoteRouterTest {
     }
 
     @Test
+    fun globalTransposeAppliesAfterSplitAndCombinesWithSlotTranspose() {
+        val router = NoteRouter(splitConfig().copy(
+            globalTranspose = 3,
+            left1 = SlotRouting(enabled = true, transposeSemitones = -12),
+        ))
+        assertEquals(listOf(NoteOn(SlotNote(LEFT_1, 50), 100)), router.noteOn(59, 100))
+        assertEquals(
+            listOf(NoteOn(SlotNote(RIGHT_1, 63), 100), NoteOn(SlotNote(RIGHT_2, 63), 100)),
+            router.noteOn(60, 100),
+        )
+        assertTrue(router.noteOn(127, 100).isEmpty())
+    }
+
+    @Test
+    fun changingGlobalTransposeReleasesTheOriginalNote() {
+        val router = NoteRouter(RoutingConfig(right1 = on, globalTranspose = 2))
+        router.noteOn(60, 100)
+        router.config = router.config.copy(globalTranspose = -2)
+        assertEquals(listOf(NoteOff(SlotNote(RIGHT_1, 62))), router.noteOff(60))
+    }
+
+    @Test
     fun noteOffReleasesOriginalTargetsAfterConfigChange() {
         val router = NoteRouter(splitConfig(splitNote = 60))
         router.noteOn(55, 100)
