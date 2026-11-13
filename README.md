@@ -4,7 +4,11 @@
 
 # OpenKeys
 
-OpenKeys is an open-source Android instrument for playing SoundFont sounds from a USB MIDI keyboard. Build a live setup with three voice slots, save it as a preset, and play.
+Bring your old keyboard back to life with fresh sounds. OpenKeys works with compatible Yamaha PSR, Roland, Korg, and other MIDI keyboards, using your Android phone or tablet to play SoundFont instruments. Connect with a compatible USB cable or adapter, import a SoundFont, and start playing.
+
+<p align="center">
+  <img src="design/OpenKeys%20Connected%20to%20Keyboard.jpg" alt="OpenKeys running on a tablet beside a Yamaha PSR keyboard" width="85%">
+</p>
 
 > OpenKeys is under active development.
 
