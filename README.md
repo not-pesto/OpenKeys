@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="design/banner.png" alt="OpenKeys — Open Source MIDI Platform for Music Performers" width="100%">
+</p>
+
 # OpenKeys
 
 OpenKeys is an open-source Android instrument for playing SoundFont sounds from a USB MIDI keyboard. Build a live setup with three voice slots, save it as a preset, and play.
