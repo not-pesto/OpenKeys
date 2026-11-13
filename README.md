@@ -1,41 +1,49 @@
-<p align="center">
-  <img src="design/banner.png" alt="OpenKeys — Open Source MIDI Platform for Music Performers" width="100%">
-</p>
-
 # OpenKeys
 
-Android app for live performance: play SoundFont voices from a USB MIDI keyboard through three voice slots (Right 1, Right 2, Left 1), with an optional per-preset keyboard split, presets and master reverb/chorus.
+OpenKeys is an open-source Android instrument for playing SoundFont sounds from a USB MIDI keyboard. Build a live setup with three voice slots, save it as a preset, and play.
 
-Use **Settings** to manage the MIDI connection and choose the input driver under **Input**, configure keyboard echo under **Output**, and import or remove SF2/SF3 SoundFonts under **Sound**. Each voice slot's instrument dropdown lists imported sounds as **SoundFont name | Instrument name**. Application and licence information is available under **About**.
+> OpenKeys is under active development.
 
-In **Sound**, select a SoundFont to rename or remove it and browse or search its instruments. Select an instrument to rename it. Names are saved locally for all presets; the SoundFont file and its original names are unchanged. Instrument names can be restored to their originals.
+## Features
 
-If notes get stuck, use **Settings → Input → All notes off** to silence them.
+- Three independent voices: **Right 1**, **Right 2**, and **Left 1**
+- Layer Right 1 and Right 2, or enable Left 1 for an optional per-preset keyboard split
+- Choose instruments from your imported SF2/SF3 SoundFonts
+- Adjust each voice's volume and octave, plus master reverb and chorus
+- Save and recall presets
+- Connect using Android MIDI or the Kshoji USB-MIDI driver
 
-## OpenKeys – UI Navigation and Feature Roadmap
+SoundFonts are not included. Import your own in **Settings → Sound**.
 
-The five tabs remain available while performing:
+## Get started
 
-- **Mixer:** shows MIDI connection status, a device-wide transpose indicator, saved preset shortcuts, and the Left 1, Right 1 and Right 2 instrument cards. Tap a card's header to toggle its voice, or its central instrument area to open the instrument picker. Volume and octave controls are separate from the instrument selection area.
-- **Effects:** adjusts the current preset's master reverb and chorus. Delay, EQ, and per-instrument effects routing are planned, not yet implemented.
-- **List Presets:** lists numbered saved presets; select one to recall it or delete one with confirmation. Numbers reflect the current list order, not permanent IDs.
-- **Save Preset:** name the current setup, save or update it, or save it as a new preset. Presets retain slot settings, split, reverb and chorus.
-- **Settings:** configure the performance setup, MIDI input/output and SoundFonts, and view licence information.
+1. Install OpenKeys on an Android device and connect a compatible USB MIDI keyboard.
+2. In **Settings → Input**, choose an input driver and connect your keyboard.
+3. Import a SoundFont in **Settings → Sound**.
+4. Choose instruments on the **Mixer**, configure your voices, and save your setup as a preset.
 
-In **Settings → Performance**, adjust the global transpose and the per-preset split key. On the Mixer, enable **Left 1** to activate the split; only the current split-key value appears beside the Left 1 header. Left 1 plays below that key, while enabled Right slots play at or above it. With Left 1 disabled, enabled Right slots cover the full keyboard. Per-slot volume and octave controls are also on the Mixer. Global transpose persists on the device independently of presets and is applied after zone selection, alongside each slot's octave setting.
-
-In **Settings → Input**, choose Android MIDI or the Kshoji USB driver, connect a device and use All notes off. Input currently accepts all MIDI channels; slot output channels are fixed (Right 1: 1, Right 2: 2, Left 1: 3). **Output** controls MIDI echo. **Sound** manages user-imported SoundFonts and instrument names. FluidSynth/Oboe audio configuration is automatic.
-
-Future opportunities include configurable MIDI channels and audio settings, delay, EQ, and instrument-specific effects routing. These are not available yet.
+Enable **Left 1** to activate the split. It plays below the split key; enabled Right voices play at or above it. Set the split key in **Settings → Performance**.
 
 ## Build
 
-Requires the Android SDK with NDK `30.0.16248370` and CMake `4.1.2`.
+Requirements: Android SDK 37, NDK `30.0.16248370`, and CMake `4.1.2`.
 
-```
+Run the unit tests, lint, and build a debug APK:
+
+```shell
+# macOS/Linux
 ./gradlew testDebugUnitTest lintDebug assembleDebug
+
+# Windows
+gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
-## Licence
+The debug APK is written to `app/build/outputs/apk/debug/`. The project targets Android 10 (API 29) and later.
 
-Apache-2.0. Bundles FluidSynth (LGPL-2.1) and the Kshoji USB-MIDI-Driver (Apache-2.0); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). No SoundFonts are included.
+## Support the project
+
+If OpenKeys is useful to you, you can [buy me a coffee](https://buymeacoffee.com/not_pesto). Thanks for supporting its development!
+
+## License
+
+OpenKeys is licensed under [Apache-2.0](LICENSE). Third-party software and license information are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). SoundFonts are user-provided and are not bundled with the app.
