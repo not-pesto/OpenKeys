@@ -1,6 +1,7 @@
 package io.github.openkeys
 
 import android.graphics.Color as AndroidColor
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -67,6 +68,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -80,10 +82,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -109,6 +113,7 @@ import io.github.openkeys.ui.theme.OkColors
 import io.github.openkeys.ui.theme.OpenKeysTheme
 import io.github.openkeys.ui.theme.okSwitchColors
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
 
@@ -446,9 +451,60 @@ private fun Header(wide: Boolean, compact: Boolean, midi: MidiInput) {
             Text("OpenKeys", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.weight(1f))
-        MidiStatusChip(state, compact)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MidiStatusChip(state, compact)
+            MediaVolumeControl(compact)
+        }
     }
     HorizontalDivider(color = OkColors.Border)
+}
+
+@Composable
+private fun MediaVolumeControl(compact: Boolean) {
+    val context = LocalContext.current
+    val audioManager = context.getSystemService(AudioManager::class.java) ?: return
+    val minVolume = remember(audioManager) { audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC) }
+    val maxVolume = remember(audioManager) { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
+    val volumeRange = (maxVolume - minVolume).coerceAtLeast(0)
+    var volume by remember(audioManager) {
+        mutableIntStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).coerceIn(minVolume, maxVolume))
+    }
+    val volumeFraction = if (volumeRange == 0) 0f else (volume - minVolume).toFloat() / volumeRange
+    val percentage = (volumeFraction * 100).roundToInt()
+
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            if (compact) "Vol" else "Media",
+            style = MaterialTheme.typography.labelSmall,
+            color = OkColors.TextSecondary,
+        )
+        Slider(
+            value = volumeFraction,
+            onValueChange = { fraction ->
+                val newVolume = (minVolume + fraction * volumeRange).roundToInt()
+                volume = newVolume
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
+            },
+            valueRange = 0f..1f,
+            steps = (volumeRange - 1).coerceAtLeast(0),
+            colors = SliderDefaults.colors(
+                thumbColor = OkColors.TextPrimary,
+                activeTrackColor = OkColors.Cyan,
+                inactiveTrackColor = OkColors.Border,
+            ),
+            modifier = Modifier
+                .width(if (compact) 64.dp else 112.dp)
+                .semantics {
+                    contentDescription = "Media output volume"
+                    stateDescription = "$percentage%"
+                },
+        )
+        Text(
+            "$percentage%",
+            style = MaterialTheme.typography.labelSmall,
+            color = OkColors.Cyan,
+        )
+    }
 }
 
 private const val MARK_ASPECT = 715f / 245f
