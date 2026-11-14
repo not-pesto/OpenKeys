@@ -56,6 +56,7 @@ class SoundFontLibraryTest {
 
         val reloaded = library().apply { load() }.entries.value.single()
         assertEquals("Stage piano", reloaded.name)
+        assertEquals("Original.sf2", reloaded.sourceFileName)
         assertEquals("Warm piano", reloaded.instrumentName(0, 1, "Original"))
         assertEquals("Other bank", reloaded.instrumentName(1, 1, "Original"))
         assertEquals("Original", reloaded.instrumentName(0, 2, "Original"))
@@ -74,6 +75,7 @@ class SoundFontLibraryTest {
         tmp.root.resolve("sf/index.json").writeText("""[{"id":"a","name":"Piano","fileName":"a.sf"}]""")
         lib.load()
         assertEquals("Original", lib.entries.value.single().instrumentName(0, 0, "Original"))
+        assertEquals("Piano", lib.entries.value.single().sourceFileName)
     }
 
     @Test

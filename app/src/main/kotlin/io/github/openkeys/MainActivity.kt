@@ -104,6 +104,7 @@ import io.github.openkeys.presets.VoiceSlot
 import io.github.openkeys.routing.VoiceSlotId
 import io.github.openkeys.soundfonts.SoundFontEntry
 import io.github.openkeys.ui.artRes
+import io.github.openkeys.ui.InstrumentDialog
 import io.github.openkeys.ui.theme.OkColors
 import io.github.openkeys.ui.theme.OpenKeysTheme
 import io.github.openkeys.ui.theme.okSwitchColors
@@ -228,9 +229,8 @@ private fun PerformanceScreen(app: OpenKeysApp, displayName: (Uri) -> String) {
     selectedSlot?.let { id ->
         InstrumentDialog(
             id = id, slot = preset.slot(id), soundFonts = soundFonts, patches = patches,
-            onSelect = { sf, patch -> perf.selectInstrument(id, sf, patch); selectedSlot = null },
+            onSelect = { sf, patch -> perf.selectInstrument(id, sf, patch) },
             onDismiss = { selectedSlot = null },
-            onManage = { selectedSlot = null; settingsTab = 3; destination = Destination.SETTINGS },
         )
     }
     message?.let {
@@ -332,41 +332,6 @@ private fun BottomNavigation(selected: Destination, compact: Boolean, onSelect: 
             }
         }
     }
-}
-
-@Composable
-private fun InstrumentDialog(
-    id: VoiceSlotId,
-    slot: VoiceSlot,
-    soundFonts: List<SoundFontEntry>,
-    patches: Map<String, List<Patch>>,
-    onSelect: (String, Patch) -> Unit,
-    onDismiss: () -> Unit,
-    onManage: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("${id.label()} instrument") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Choose an instrument from your SoundFont library.")
-                Picker(
-                    label = "Instrument",
-                    selected = soundFonts.firstOrNull { it.id == slot.soundFontId }?.name ?: "None",
-                    options = soundFonts.flatMap { sf ->
-                        patches[sf.id].orEmpty().map { p ->
-                            (sf.id to p) to "${sf.name} | ${sf.instrumentName(p.bank, p.program, p.name)}"
-                        }
-                    },
-                    onSelect = { (sf, patch) -> onSelect(sf, patch) },
-                    fill = true,
-                )
-                if (soundFonts.isEmpty()) Text("Import a SoundFont in Settings first.", color = OkColors.TextSecondary)
-                TextButton(onClick = onManage) { Text("Manage SoundFonts in Settings") }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-    )
 }
 
 @Composable

@@ -21,6 +21,7 @@ data class SoundFontEntry(
     val name: String,
     val fileName: String,
     val instrumentNames: Map<String, String> = emptyMap(),
+    val sourceFileName: String = name,
 ) {
     fun instrumentName(bank: Int, program: Int, original: String): String =
         instrumentNames["$bank:$program"] ?: original

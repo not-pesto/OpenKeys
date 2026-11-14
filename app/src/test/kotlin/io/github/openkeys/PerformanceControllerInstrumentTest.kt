@@ -13,6 +13,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -31,8 +32,9 @@ class PerformanceControllerInstrumentTest {
         library.add(SoundFontEntry("second", "Second", "second.sf"))
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
+            val synth = CatalogSynth()
             val controller = PerformanceController(
-                CatalogSynth(),
+                synth,
                 PresetRepository(temporaryFolder.root.resolve("presets.json")),
                 SoundFontLibrary(directory),
                 scope,
@@ -42,16 +44,22 @@ class PerformanceControllerInstrumentTest {
             assertEquals(listOf(Patch(2, 10, "Piano")), catalog["first"])
             assertEquals(listOf(Patch(5, 10, "Piano")), catalog["second"])
 
-            controller.updateSlot(VoiceSlotId.RIGHT_2) { it.copy(enabled = true, volume = 0.4f, transposeSemitones = 12) }
-            controller.selectInstrument(VoiceSlotId.RIGHT_2, "second", catalog.getValue("second").single())
-            val slot = controller.current.value.right2
-            assertEquals("second", slot.soundFontId)
-            assertEquals(5, slot.bank)
-            assertEquals(10, slot.program)
-            assertEquals(true, slot.enabled)
-            assertEquals(0.4f, slot.volume)
-            assertEquals(12, slot.transposeSemitones)
-            assertEquals(null, controller.current.value.right1.soundFontId)
+            for (id in VoiceSlotId.entries) {
+                controller.updateSlot(id) { it.copy(enabled = true, volume = 0.4f, transposeSemitones = 12) }
+                val before = controller.current.value
+                controller.selectInstrument(id, "second", catalog.getValue("second").single())
+                val after = controller.current.value
+                assertEquals(
+                    before.slot(id).copy(soundFontId = "second", bank = 5, program = 10),
+                    after.slot(id),
+                )
+                VoiceSlotId.entries.filter { it != id }.forEach {
+                    assertEquals(before.slot(it), after.slot(it))
+                }
+                withTimeout(5000) {
+                    while (synth.selections[id] != Triple(2, 5, 10)) yield()
+                }
+            }
         } finally {
             scope.cancel()
         }
@@ -82,6 +90,7 @@ class PerformanceControllerInstrumentTest {
     }
 
     private class CatalogSynth : SynthEngine {
+        val selections = java.util.concurrent.ConcurrentHashMap<VoiceSlotId, Triple<Int, Int, Int>>()
         override fun loadSoundFont(path: String): Int? = when {
             path.endsWith("first.sf") -> 1
             path.endsWith("second.sf") -> 2
@@ -89,7 +98,10 @@ class PerformanceControllerInstrumentTest {
         }
         override fun patches(soundFontId: Int) = listOf(Patch(if (soundFontId == 1) 2 else 5, 10, "Piano"))
         override fun unloadSoundFont(soundFontId: Int) = Unit
-        override fun selectProgram(slot: VoiceSlotId, soundFontId: Int, bank: Int, program: Int) = true
+        override fun selectProgram(slot: VoiceSlotId, soundFontId: Int, bank: Int, program: Int): Boolean {
+            selections[slot] = Triple(soundFontId, bank, program)
+            return true
+        }
         override fun setSlotVolume(slot: VoiceSlotId, volume: Float) = Unit
         override fun setReverb(level: Float) = Unit
         override fun setChorus(level: Float) = Unit
